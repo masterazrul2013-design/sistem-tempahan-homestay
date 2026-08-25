@@ -1,0 +1,178 @@
+/* Custom Styles for SofiaRizqi Homestay Booking System */
+:root {
+  --primary-navy: #0f2444;
+  --secondary-navy: #1e3a66;
+  --gold-accent: #daa520;
+  --gold-light: #fff8e7;
+  --border-color: #cbd5e1;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: #f8fafc;
+  color: #1e293b;
+}
+
+/* Header & Logo styling */
+.brand-title {
+  font-family: 'Georgia', serif;
+  letter-spacing: 0.5px;
+}
+
+/* Card hover effects */
+.hover-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.hover-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -5px rgba(15, 36, 68, 0.1);
+}
+
+/* FullCalendar Overrides */
+.fc-event {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 2px 4px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.fc-event-confirmed {
+  background-color: #ef4444 !important;
+  border-color: #dc2626 !important;
+  color: #ffffff !important;
+}
+.fc-event-pending {
+  background-color: #f59e0b !important;
+  border-color: #d97706 !important;
+  color: #ffffff !important;
+}
+
+/* Modal styling */
+.modal-backdrop {
+  background-color: rgba(15, 36, 68, 0.6);
+  backdrop-filter: blur(4px);
+}
+
+/* On-screen receipt box styling */
+.receipt-box {
+  width: 100%;
+  max-width: 195mm;
+  padding: 12px;
+  background: white;
+  margin: 0 auto;
+  box-shadow: 0 0 10px rgba(0,0,0,0.05);
+  border: 1px solid #0f2444;
+  font-size: 11px;
+  box-sizing: border-box;
+  border-radius: 6px;
+}
+
+.receipt-header-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.receipt-navy-bar {
+  background-color: var(--primary-navy);
+  color: white;
+  padding: 3px 8px;
+  font-weight: bold;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.receipt-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+}
+
+.receipt-table th, .receipt-table td {
+  border: 1px solid var(--primary-navy);
+  padding: 5px 8px;
+}
+
+.receipt-table th {
+  background-color: var(--primary-navy);
+  color: white;
+  text-align: center;
+}
+
+.receipt-total-row {
+  background-color: var(--gold-light);
+  font-weight: bold;
+}
+
+/* ABSOLUTE 1-PAGE A4 PRINT ENGINE (HIDES ALL BODY SIBLINGS FROM LAYOUT FLOW) */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 5mm 8mm;
+  }
+
+  html, body {
+    width: 100% !important;
+    height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    overflow: hidden !important;
+  }
+
+  /* Completely remove header, main body views & other modals from DOM layout flow */
+  body > *:not(#modal-print-view) {
+    display: none !important;
+  }
+
+  /* Make ONLY modal-print-view visible and fill the page */
+  #modal-print-view {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    border: none !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
+  }
+
+  #modal-print-view > div {
+    border: none !important;
+    box-shadow: none !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: white !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  #print-container {
+    padding: 0 !important;
+    margin: 0 !important;
+    background: white !important;
+    overflow: hidden !important;
+  }
+
+  #print-area {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    page-break-after: avoid !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+}

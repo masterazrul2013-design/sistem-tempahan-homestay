@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistem Tempahan & Resit - SofiaRizqi Homestay</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FullCalendar -->
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="css/style.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            navy: {
+              800: '#1e3a66',
+              900: '#0f2444',
+            },
+            gold: {
+              500: '#daa520',
+              600: '#b8860b',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+  <!-- TOP HEADER / NAV BAR -->
+  <header class="bg-navy-900 text-white shadow-md sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-3 cursor-pointer" onclick="showLoginMenu()">
+        <div class="w-12 h-12 rounded-full border-2 border-gold-500 flex items-center justify-center bg-white p-1 overflow-hidden shadow">
+          <img src="assets/receipt_sample.png" alt="SofiaRizqi Logo" class="object-cover w-full h-full rounded-full" onerror="this.src='https://ui-avatars.com/api/?name=Sofia+Rizqi&background=0f2444&color=daa520'">
+        </div>
+        <div>
+          <h1 class="text-xl font-bold brand-title text-gold-500 tracking-wide">SofiaRizqi Homestay</h1>
+          <p class="text-xs text-slate-300">Selesa • Bersih • Mesra — Baling, Kedah</p>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-4">
+        <!-- Logged In User Info -->
+        <div id="user-info-bar" class="hidden flex items-center space-x-3 bg-navy-800 px-3 py-1.5 rounded-lg border border-slate-700">
+          <i data-lucide="user" class="w-4 h-4 text-gold-500"></i>
+          <span id="current-user-name" class="text-sm font-medium"></span>
+          <span id="current-user-role" class="text-xs bg-gold-500 text-navy-900 font-bold px-2 py-0.5 rounded-full uppercase"></span>
+          <button onclick="logout()" class="text-xs text-slate-300 hover:text-red-400 font-semibold pl-2 border-l border-slate-600 flex items-center gap-1">
+            <i data-lucide="log-out" class="w-3.5 h-3.5"></i> Keluar
+          </button>
+        </div>
+
+        <!-- Single Header Auth Button -->
+        <div id="auth-buttons" class="flex items-center space-x-2">
+          <button onclick="showLoginMenu()" class="bg-gold-500 hover:bg-gold-600 text-navy-900 px-4 py-2 rounded-lg text-sm font-bold shadow flex items-center gap-1.5 transition">
+            <i data-lucide="log-in" class="w-4 h-4"></i> Log Masuk / Daftar
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN FLEX CONTAINER WITH LEFT SIDEBAR -->
+  <div class="max-w-7xl w-full mx-auto px-4 py-6 flex flex-col md:flex-row gap-6 relative flex-grow">
+    
+    <!-- LEFT SIDEBAR NAVIGATION -->
+    <aside id="sidebar-nav" class="w-full md:w-64 shrink-0 transition-all duration-300">
+      <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-md space-y-4 sticky top-[84px]">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+          <span class="text-xs font-bold text-navy-900 uppercase tracking-wider flex items-center gap-1.5">
+            <i data-lucide="compass" class="w-4 h-4 text-gold-500"></i> Navigasi Menu
+          </span>
+          <button onclick="toggleSidebarNav()" class="text-slate-400 hover:text-navy-900 p-1 rounded-lg hover:bg-slate-100 transition" title="Sembunyikan Menu Sidebar">
+            <i data-lucide="chevron-left" class="w-4 h-4"></i>
+          </button>
+        </div>
+
+        <div class="space-y-1.5">
+          <button onclick="switchTab('login-menu')" id="tab-login-menu" class="w-full text-left py-2.5 px-3 rounded-xl font-bold text-xs flex items-center gap-2.5 transition bg-navy-900 text-gold-500 shadow">
+            <i data-lucide="log-in" class="w-4 h-4"></i> Menu Log Masuk
+          </button>
+          <button onclick="switchTab('dashboard')" id="tab-dashboard" class="w-full text-left py-2.5 px-3 rounded-xl font-medium text-xs text-slate-600 hover:bg-slate-100 flex items-center gap-2.5 transition">
+            <i data-lucide="calendar" class="w-4 h-4"></i> Kalendar Tempahan
+          </button>
+          <button onclick="switchTab('penyewa-list')" id="tab-penyewa-list" class="hidden w-full text-left py-2.5 px-3 rounded-xl font-medium text-xs text-slate-600 hover:bg-slate-100 flex items-center gap-2.5 transition">
+            <i data-lucide="users" class="w-4 h-4"></i> Maklumat Penyewa & Tempahan
+          </button>
+          <button onclick="switchTab('my-bookings')" id="tab-my-bookings" class="hidden w-full text-left py-2.5 px-3 rounded-xl font-medium text-xs text-slate-600 hover:bg-slate-100 flex items-center gap-2.5 transition">
+            <i data-lucide="bookmark-check" class="w-4 h-4"></i> Tempahan Saya
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT AREA -->
+    <main class="flex-grow min-w-0 w-full">
+      <!-- BUTTON TO RE-OPEN SIDEBAR WHEN HIDDEN -->
+      <button onclick="toggleSidebarNav()" id="btn-show-sidebar" class="hidden mb-4 bg-white hover:bg-slate-50 text-navy-900 font-bold px-3.5 py-2 rounded-xl border border-slate-300 shadow-sm text-xs inline-flex items-center gap-2 transition">
+        <i data-lucide="panel-left" class="w-4 h-4 text-gold-500"></i> Buka Menu Navigasi (Sidebar)
+      </button>
+
+    <!-- TAB 0: SINGLE UNIFIED LOGIN MENU SCREEN -->
+    <div id="view-login-menu" class="space-y-6">
+      <div class="max-w-2xl mx-auto space-y-6">
+        
+        <!-- HERO HEADER -->
+        <div class="bg-gradient-to-r from-navy-900 via-navy-800 to-slate-900 text-white p-6 rounded-3xl shadow-xl border border-gold-500/30 text-center space-y-2">
+          <div class="w-16 h-16 rounded-full border-4 border-gold-500 bg-white p-1 mx-auto shadow-lg overflow-hidden">
+            <img src="assets/receipt_sample.png" alt="SofiaRizqi Logo" class="object-cover w-full h-full rounded-full" onerror="this.src='https://ui-avatars.com/api/?name=Sofia+Rizqi&background=0f2444&color=daa520'">
+          </div>
+          <h2 class="text-2xl font-bold brand-title text-gold-500 tracking-wide">SofiaRizqi Homestay</h2>
+          <p class="text-xs text-slate-200">
+            Kadar Penginapan: <strong class="text-gold-500">RM 350.00 / Malam</strong> | Deposit Sekuriti: <strong class="text-gold-500">RM 100.00</strong>
+          </p>
+        </div>
+
+        <!-- 1 SINGLE UNIFIED LOGIN MENU CARD -->
+        <div class="bg-white p-6 rounded-3xl border-2 border-slate-200 shadow-xl space-y-5">
+          <div class="text-center border-b border-slate-100 pb-3">
+            <h3 class="text-xl font-bold text-navy-900 brand-title">Log Masuk Sistem</h3>
+            <p class="text-xs text-slate-500">Log masuk Admin atau Penyewa sedia ada, atau daftar akaun baharu</p>
+          </div>
+
+          <!-- Subtabs: Log Masuk vs Daftar Baharu -->
+          <div class="flex bg-slate-100 p-1 rounded-xl font-semibold text-xs text-slate-600">
+            <button onclick="toggleSingleAuthMode('login')" id="single-auth-btn-login" class="flex-1 py-2.5 rounded-lg bg-white text-navy-900 shadow transition">Log Masuk (Admin & Penyewa)</button>
+            <button onclick="toggleSingleAuthMode('register')" id="single-auth-btn-reg" class="flex-1 py-2.5 rounded-lg hover:text-navy-900 transition">Daftar Penyewa Baharu</button>
+          </div>
+
+          <!-- FORM 1: LOG MASUK TUNGGAL (ADMIN & PENYEWA) -->
+          <form id="single-form-login" onsubmit="handleSingleLoginSubmit(event)" class="space-y-4 pt-1">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">No. Telefon / ID Pengguna</label>
+              <input type="text" id="single-login-id" required value="016-2020209" placeholder="Cth: 016-2020209 atau admin" class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-navy-900 focus:outline-none">
+              <p class="text-[11px] text-slate-400 mt-1">
+                💡 <strong>Admin:</strong> Guna ID <code class="bg-slate-100 px-1 py-0.5 rounded text-navy-900 font-bold">admin</code> & password <code class="bg-slate-100 px-1 py-0.5 rounded text-navy-900 font-bold">admin123</code><br>
+                💡 <strong>Penyewa Sedia Ada:</strong> Masukkan No. Telefon & Kata Laluan
+              </p>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Kata Laluan</label>
+              <input type="password" id="single-login-password" required value="1234" placeholder="••••••••" class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-navy-900 focus:outline-none">
+            </div>
+            <button type="submit" class="w-full bg-navy-900 hover:bg-navy-800 text-gold-500 font-bold py-3 rounded-xl shadow-lg text-sm transition flex items-center justify-center gap-2">
+              <i data-lucide="log-in" class="w-4 h-4"></i> Log Masuk
+            </button>
+          </form>
+
+          <!-- FORM 2: DAFTAR PENYEWA BAHARU -->
+          <form id="single-form-reg" onsubmit="handleSingleRegisterSubmit(event)" class="hidden space-y-3 pt-1">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Nama Penuh <span class="text-red-500">*</span></label>
+              <input type="text" id="single-reg-name" required placeholder="Cth: Aida Muhamad" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-navy-900 focus:outline-none">
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">No. Telefon <span class="text-red-500">*</span></label>
+                <input type="tel" id="single-reg-phone" required placeholder="016-2020209" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-navy-900 focus:outline-none">
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">No. IC</label>
+                <input type="text" id="single-reg-ic" placeholder="900101-08-5432" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-navy-900 focus:outline-none">
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Alamat Kediaman</label>
+              <textarea id="single-reg-address" rows="2" placeholder="Alamat penuh..." class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-navy-900 focus:outline-none"></textarea>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Kata Laluan Baru <span class="text-red-500">*</span></label>
+              <input type="password" id="single-reg-password" required placeholder="••••••••" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-navy-900 focus:outline-none">
+            </div>
+            <button type="submit" class="w-full bg-gold-500 hover:bg-gold-600 text-navy-900 font-bold py-3 rounded-xl shadow-lg text-sm transition flex items-center justify-center gap-2">
+              <i data-lucide="user-plus" class="w-4 h-4"></i> Daftar Akaun & Mula Tempah
+            </button>
+          </form>
+
+          <!-- VIEW CALENDAR DIRECT LINK -->
+          <div class="text-center pt-2 border-t border-slate-100">
+            <button onclick="switchTab('dashboard')" class="text-xs text-slate-500 hover:text-navy-900 font-semibold inline-flex items-center gap-1">
+              <i data-lucide="calendar" class="w-3.5 h-3.5 text-gold-500"></i> Lihat Kalendar Ketersediaan (Tanpa Log Masuk)
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+
+    <!-- TAB 1: DASHBOARD & CALENDAR VIEW -->
+    <div id="view-dashboard" class="hidden space-y-6">
+      <!-- STATS OVERVIEW CARDS (Visible only to Admin) -->
+      <div id="stats-overview-container" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover-card">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-xs text-slate-500 font-medium">Jumlah Tempahan</p>
+              <h3 id="stat-total" class="text-2xl font-bold text-navy-900">0</h3>
+            </div>
+            <div class="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+              <i data-lucide="calendar" class="w-5 h-5"></i>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover-card">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-xs text-slate-500 font-medium">Tempahan Disahkan</p>
+              <h3 id="stat-confirmed" class="text-2xl font-bold text-emerald-600">0</h3>
+            </div>
+            <div class="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <i data-lucide="check-circle" class="w-5 h-5"></i>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover-card">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-xs text-slate-500 font-medium">Menunggu Pengesahan</p>
+              <h3 id="stat-pending" class="text-2xl font-bold text-amber-600">0</h3>
+            </div>
+            <div class="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+              <i data-lucide="clock" class="w-5 h-5"></i>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover-card">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-xs text-slate-500 font-medium">Jumlah Hasil Dikutip</p>
+              <h3 id="stat-revenue" class="text-2xl font-bold text-navy-900">RM 0</h3>
+            </div>
+            <div class="w-10 h-10 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
+              <i data-lucide="dollar-sign" class="w-5 h-5"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MAIN CALENDAR CONTAINER -->
+      <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+          <div>
+            <h3 class="text-lg font-bold text-navy-900 flex items-center gap-2">
+              <i data-lucide="calendar-days" class="w-5 h-5 text-gold-500"></i> Kalendar Penginapan & Ketersediaan
+            </h3>
+            <p class="text-xs text-slate-500">Tarikh diwarnakan merah telah ditempah & dikunci.</p>
+          </div>
+          <div class="flex items-center gap-4 text-xs font-semibold">
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span> Tarikh Bebas</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-red-500 inline-block"></span> Disahkan (Telah Ditempah)</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-amber-500 inline-block"></span> Menunggu Pengesahan</span>
+          </div>
+        </div>
+
+        <!-- FullCalendar Mounting Point -->
+        <div id="calendar-el" class="min-h-[500px]"></div>
+      </div>
+    </div>
+
+    <!-- TAB 2: TAB MAKLUMAT PENYEWA & TEMPAHAN (ADMIN) -->
+    <div id="view-penyewa-list" class="hidden space-y-4">
+      <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h3 class="text-lg font-bold text-navy-900 flex items-center gap-2">
+              <i data-lucide="users" class="w-5 h-5 text-gold-500"></i> Senarai Maklumat Penyewa & Tempahan
+            </h3>
+            <p class="text-xs text-slate-500">Uruskan pengesahan bayaran, jana WhatsApp, Invois dan Resit Pembayaran rasmi.</p>
+          </div>
+          
+          <div class="flex flex-wrap items-center gap-3">
+            <div class="relative">
+              <input type="text" id="search-input" onkeyup="renderBookingsTable()" placeholder="Cari nama, no. tel, ID..." class="pl-9 pr-4 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-navy-900 focus:outline-none w-64">
+              <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
+            </div>
+            <select id="status-filter" onchange="renderBookingsTable()" class="px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-navy-900 focus:outline-none">
+              <option value="ALL">Semua Status</option>
+              <option value="DISAHKAN">DISAHKAN</option>
+              <option value="MENUNGGU PENGESAHAN">MENUNGGU PENGESAHAN</option>
+              <option value="BATAL">BATAL</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- BOOKINGS TABLE -->
+        <div class="overflow-x-auto rounded-xl border border-slate-200">
+          <table class="w-full text-left text-sm text-slate-700">
+            <thead class="bg-navy-900 text-white text-xs uppercase font-semibold">
+              <tr>
+                <th class="p-3">No. Tempahan</th>
+                <th class="p-3">Nama Tetamu & Tel</th>
+                <th class="p-3">Tarikh Check-in / Out</th>
+                <th class="p-3">Bil. Tetamu & Kenderaan</th>
+                <th class="p-3">Bayaran & Baki</th>
+                <th class="p-3">Status</th>
+                <th class="p-3 text-center">Tindakan</th>
+              </tr>
+            </thead>
+            <tbody id="bookings-table-body" class="divide-y divide-slate-200 bg-white">
+              <!-- Rendered via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: TEMPAHAN SAYA (PENYEWA) -->
+    <div id="view-my-bookings" class="hidden space-y-4">
+      <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-lg font-bold text-navy-900 flex items-center gap-2">
+              <i data-lucide="bookmark-check" class="w-5 h-5 text-gold-500"></i> Rekod Tempahan Saya
+            </h3>
+            <p class="text-xs text-slate-500">Semak status tempahan dan muat naik resit bukti pembayaran anda.</p>
+          </div>
+          <button onclick="openBookingModal()" class="bg-gold-500 hover:bg-gold-600 text-navy-900 px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 shadow transition">
+            <i data-lucide="plus" class="w-4 h-4"></i> Tempah Lagi
+          </button>
+        </div>
+
+        <div id="my-bookings-container" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Rendered via JS -->
+        </div>
+      </div>
+    </div>
+
+    </main>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="bg-navy-900 text-slate-300 text-xs py-6 border-t border-gold-500/40 mt-12">
+    <div class="max-w-7xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-3 text-center md:text-left">
+      <div>
+        <p class="font-bold text-gold-500 text-sm">SofiaRizqi Homestay</p>
+        <p class="text-slate-400">No. 14, Jalan Desa Seroja 3, Taman Desa Seroja, 09100 Baling, Kedah.</p>
+      </div>
+      <div class="flex items-center gap-4">
+        <span class="flex items-center gap-1"><i data-lucide="phone" class="w-3.5 h-3.5 text-gold-500"></i> 019-229 8176</span>
+        <span>•</span>
+        <span>Selesa • Bersih • Mesra</span>
+      </div>
+    </div>
+  </footer>
+
+
+  <!-- ==================== MODALS ==================== -->
+
+  <!-- 1. NEW BOOKING MODAL -->
+  <div id="modal-booking" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto border border-slate-200">
+      <div class="bg-navy-900 p-4 text-white flex justify-between items-center sticky top-0 z-10 border-b border-gold-500/40">
+        <h3 class="font-bold text-base brand-title flex items-center gap-2">
+          <i data-lucide="home" class="w-5 h-5 text-gold-500"></i> Borang Tempahan SofiaRizqi Homestay
+        </h3>
+        <button onclick="closeModal('modal-booking')" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+
+      <form onsubmit="handleBookingSubmit(event)" class="p-5 space-y-4">
+        <!-- Guest Details -->
+        <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2.5">
+          <h4 class="text-xs font-bold uppercase text-navy-900 tracking-wider">Maklumat Tetamu</h4>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Nama Tetamu Utama <span class="text-red-500">*</span></label>
+            <input type="text" id="book-name" required placeholder="Aida Muhamad" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-navy-900 focus:outline-none">
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">No. Telefon <span class="text-red-500">*</span></label>
+              <input type="tel" id="book-phone" required placeholder="016-2020209" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-navy-900 focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Bilangan Tetamu (Nombor Sahaja) <span class="text-red-500">*</span></label>
+              <input type="number" id="book-guests" min="1" required placeholder="Cth: 4" oninput="this.value = this.value.replace(/[^0-9]/g, '')" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-navy-900 focus:outline-none">
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Alamat Tetamu</label>
+            <input type="text" id="book-address" placeholder="Alamat penuh..." class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-navy-900 focus:outline-none">
+          </div>
+        </div>
+
+        <!-- Dates & Vehicle -->
+        <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2.5">
+          <h4 class="text-xs font-bold uppercase text-navy-900 tracking-wider">Maklumat Tarikh & Kenderaan</h4>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Tarikh Check-in <span class="text-red-500">*</span></label>
+              <input type="date" id="book-checkin" required onchange="calculateBookingPrice()" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-navy-900 focus:outline-none">
+              <span class="text-[11px] text-slate-500">Masa: 2.00 Petang</span>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Tarikh Check-out <span class="text-red-500">*</span></label>
+              <input type="date" id="book-checkout" required onchange="calculateBookingPrice()" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-navy-900 focus:outline-none">
+              <span class="text-[11px] text-slate-500">Masa: 12.00 Tengahari</span>
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">No. Pendaftaran Kenderaan</label>
+            <input type="text" id="book-vehicles" placeholder="Cth: VDK9939 / WXY9913 / BKK4530" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-navy-900 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Tujuan Penginapan</label>
+            <input type="text" id="book-purpose" placeholder="Cth: Percutian Keluarga / Kenduri" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-navy-900 focus:outline-none">
+          </div>
+        </div>
+
+        <!-- PAYMENT METHOD DROPDOWN CARD -->
+        <div class="bg-amber-50 p-4 rounded-xl border-2 border-gold-500 space-y-2">
+          <label class="block text-xs font-bold text-navy-900 uppercase tracking-wider">
+            💳 Pilih Jenis Pembayaran <span class="text-red-600">*</span>
+          </label>
+          <select id="book-payment-method" required onchange="updatePaymentNotice()" class="w-full px-3.5 py-2.5 border-2 border-navy-900 rounded-xl text-sm font-bold bg-white text-navy-900 focus:ring-2 focus:ring-navy-900 focus:outline-none">
+            <option value="Online Transfer">💳 Online Transfer Bank Islam (Wajib Muat Naik Bukti Bayaran)</option>
+            <option value="QR DuitNow">📱 QR DuitNow (Wajib Muat Naik Bukti Bayaran)</option>
+            <option value="Tunai">💵 Tunai (Bayar Semasa Check-in — Terus Papar Tempahan)</option>
+          </select>
+          <div id="payment-notice-box" class="text-[11px] text-slate-700 bg-white p-2.5 rounded-lg border border-gold-500/40">
+            💳 <strong>Online Transfer:</strong> Memaparkan No. Akaun Bank Islam. WAJIB muat naik bukti pembayaran pada langkah seterusnya untuk dipaparkan di senarai tempahan.
+          </div>
+        </div>
+
+        <!-- Realtime Price Summary Box -->
+        <div class="bg-gold-50/70 p-3.5 rounded-xl border border-gold-500/30 space-y-1.5">
+          <div class="flex justify-between text-xs text-slate-700">
+            <span>Harga Penginapan (<span id="calc-nights">0</span> Malam × RM 350.00):</span>
+            <strong id="calc-total">RM 0.00</strong>
+          </div>
+          <div class="flex justify-between text-xs text-slate-700">
+            <span>Deposit Sekuriti Diterima:</span>
+            <strong id="calc-deposit" class="text-emerald-700">RM 100.00</strong>
+          </div>
+          <hr class="border-gold-500/30">
+          <div class="flex justify-between text-sm text-navy-900 font-bold">
+            <span>Baki Bayaran Perlu Dijelaskan:</span>
+            <strong id="calc-balance" class="text-base text-navy-900">RM 0.00</strong>
+          </div>
+        </div>
+
+        <button type="submit" id="btn-submit-booking" class="w-full bg-navy-900 hover:bg-navy-800 text-gold-500 font-bold py-3.5 rounded-xl shadow-lg text-sm transition flex items-center justify-center gap-2 cursor-pointer">
+          <i data-lucide="check-circle" class="w-4 h-4"></i> Sahkan Tempahan & Teruskan Pembayaran
+        </button>
+      </form>
+    </div>
+  </div>
+
+
+  <!-- 2. PAYMENT & PROOF UPLOAD MODAL -->
+  <div id="modal-payment" class="hidden fixed inset-0 z-50 flex items-center justify-center p-3 modal-backdrop">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full max-h-[92vh] flex flex-col border border-slate-200">
+      
+      <div class="bg-navy-900 px-4 py-3 text-white flex justify-between items-center border-b border-gold-500/40 shrink-0">
+        <h3 id="payment-modal-title" class="font-bold text-base brand-title flex items-center gap-2">
+          <i data-lucide="credit-card" class="w-4 h-4 text-gold-500"></i> Pembayaran Tempahan
+        </h3>
+        <button onclick="attemptClosePaymentModal()" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+
+      <div class="p-4 space-y-3 text-center overflow-y-auto flex-grow">
+        
+        <!-- SECTION A: QR DUITNOW -->
+        <div id="payment-sec-qr" class="space-y-2">
+          <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Imbas & Bayar Melalui DuitNow QR</span>
+          <h4 class="text-sm font-bold text-navy-900">BANK ISLAM — RAHMAN RAMLI VENTURES</h4>
+          <div class="w-48 max-h-56 mx-auto p-1.5 bg-white rounded-xl border-2 border-pink-500 shadow-sm overflow-hidden flex items-center justify-center">
+            <img src="assets/qr_bankislam.png" alt="DuitNow QR Bank Islam" class="max-h-52 w-auto object-contain rounded-lg">
+          </div>
+        </div>
+
+        <!-- SECTION B: ONLINE TRANSFER -->
+        <div id="payment-sec-bank" class="hidden bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-left space-y-2">
+          <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider block text-center">Maklumat Perbankan Online Transfer</span>
+          <div class="text-xs space-y-1 text-slate-700">
+            <p><strong>Nama Bank:</strong> Bank Islam Malaysia Berhad</p>
+            <p><strong>Nama Akaun:</strong> RAHMAN RAMLI VENTURES</p>
+            <p><strong>No. Akaun:</strong> <span class="font-mono text-navy-900 font-bold bg-white px-2 py-0.5 rounded border border-slate-300">02048010041234</span></p>
+            <p><strong>Rujukan Tempahan:</strong> <span id="bank-ref-id" class="font-bold text-gold-600">SRH...</span></p>
+          </div>
+        </div>
+
+        <div class="bg-red-50 p-2.5 rounded-xl border border-red-200 text-[11px] text-red-700 font-semibold leading-tight text-left">
+          ⚠️ <strong>PERHATIAN WAJIB:</strong> Sila buat bayaran Deposit Sekuriti <strong>RM 100.00</strong> dan MUAT NAIK RESIT BUKTI PEMBAYARAN di bawah untuk melengkapkan tempahan anda.
+        </div>
+
+        <form onsubmit="handleUploadProofSubmit(event)" class="space-y-2.5 text-left pt-1">
+          <input type="hidden" id="upload-booking-id">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Muat Naik Resit / Bukti Pembayaran <span class="text-red-500">*</span></label>
+            <input type="file" id="proof-file" accept="image/*,.pdf" required class="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-navy-900 file:text-white hover:file:bg-navy-800">
+          </div>
+          <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl shadow text-xs transition flex items-center justify-center gap-1.5">
+            <i data-lucide="upload-cloud" class="w-4 h-4"></i> Hantar Bukti Pembayaran & Sahkan
+          </button>
+        </form>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- 3. WHATSAPP GENERATOR MODAL -->
+  <div id="modal-whatsapp" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] flex flex-col border border-slate-200">
+      <div class="bg-emerald-700 p-4 text-white flex justify-between items-center border-b border-emerald-600">
+        <h3 class="font-bold text-base brand-title flex items-center gap-2">
+          <i data-lucide="message-square" class="w-5 h-5 text-emerald-300"></i> Mesej Pengesahan WhatsApp
+        </h3>
+        <button onclick="closeModal('modal-whatsapp')" class="text-emerald-200 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+
+      <div class="p-5 space-y-3 flex-grow overflow-y-auto">
+        <p class="text-xs text-slate-600">Teks ini dijana secara automatik berdasarkan maklumat tempahan tetamu untuk dihantar ke WhatsApp penyewa.</p>
+        <textarea id="whatsapp-text-content" rows="12" class="w-full p-3 border border-slate-300 rounded-xl text-xs font-mono bg-slate-50 focus:ring-2 focus:ring-emerald-600 focus:outline-none leading-relaxed"></textarea>
+      </div>
+
+      <div class="bg-slate-100 p-3 border-t border-slate-200 flex flex-col sm:flex-row gap-2 justify-end">
+        <button onclick="copyWhatsAppText()" class="bg-slate-700 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center justify-center gap-2">
+          <i data-lucide="copy" class="w-4 h-4"></i> Salin Teks
+        </button>
+        <a id="whatsapp-send-link" target="_blank" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-2 rounded-xl text-xs flex items-center justify-center gap-2 shadow">
+          <i data-lucide="send" class="w-4 h-4"></i> Hantar ke WhatsApp
+        </a>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- 4. PROOF PREVIEW & STATUS EDIT MODAL (ADMIN) -->
+  <div id="modal-proof-view" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-slate-200">
+      <div class="bg-navy-900 p-4 text-white flex justify-between items-center border-b border-gold-500/40">
+        <h3 class="font-bold text-base brand-title flex items-center gap-2">
+          <i data-lucide="file-check" class="w-5 h-5 text-gold-500"></i> Semakan Bukti Pembayaran
+        </h3>
+        <button onclick="closeModal('modal-proof-view')" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+
+      <div class="p-5 space-y-4 text-center">
+        <div id="proof-image-container" class="max-h-64 bg-slate-100 rounded-xl overflow-hidden flex items-center justify-center border border-slate-200">
+          <!-- Proof Image -->
+        </div>
+
+        <div class="space-y-2 text-left bg-slate-50 p-3 rounded-xl text-xs">
+          <p><strong>Nama Tetamu:</strong> <span id="pv-guest-name"></span></p>
+          <p><strong>Jumlah Bayaran:</strong> RM <span id="pv-amount"></span></p>
+          <p><strong>No. Telefon:</strong> <span id="pv-phone"></span></p>
+        </div>
+
+        <div class="flex gap-2">
+          <button onclick="approveBookingStatus('DISAHKAN')" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow">
+            <i data-lucide="check" class="w-4 h-4"></i> Sahkan Tempahan (Approve)
+          </button>
+          <button onclick="approveBookingStatus('BATAL')" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow">
+            <i data-lucide="x" class="w-4 h-4"></i> Tolak / Batal
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- 5. PRINT RECEIPT / INVOICE VIEW MODAL (WITH QUICK PAYMENT METHOD SWITCHER) -->
+  <div id="modal-print-view" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[95vh] flex flex-col border border-slate-200">
+      <div class="bg-navy-900 p-4 text-white flex justify-between items-center no-print">
+        <h3 id="print-modal-title" class="font-bold text-base brand-title">Dokumen Cetakan</h3>
+        
+        <div class="flex items-center gap-3">
+          <!-- Quick Receipt Payment Method Switcher -->
+          <div class="flex items-center gap-1.5 bg-navy-800 px-3 py-1 rounded-xl border border-gold-500/40">
+            <span class="text-xs text-gold-500 font-bold">Kaedah Bayaran:</span>
+            <select id="receipt-payment-method-select" onchange="changeReceiptPaymentMethod(this.value)" class="bg-navy-900 text-white font-bold text-xs py-1 px-2 rounded-lg border border-slate-600 focus:outline-none cursor-pointer">
+              <option value="Online Transfer">💳 Online Transfer</option>
+              <option value="QR DuitNow">📱 QR DuitNow</option>
+              <option value="Tunai">💵 Tunai</option>
+            </select>
+          </div>
+
+          <button onclick="triggerPrintDoc()" class="bg-gold-500 hover:bg-gold-600 text-navy-900 px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow">
+            <i data-lucide="printer" class="w-4 h-4"></i> Cetak / PDF
+          </button>
+          <button onclick="closeModal('modal-print-view')" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+        </div>
+      </div>
+
+      <div class="p-4 flex-grow overflow-y-auto bg-slate-200" id="print-container">
+        <!-- Rendered Receipt / Invoice Document -->
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Application Core Script with relative path -->
+  <script src="js/app.js"></script>
+</body>
+</html>

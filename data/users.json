@@ -1,0 +1,50 @@
+[
+  {
+    "id": "USR-ADMIN",
+    "role": "admin",
+    "name": "Pengurusan SofiaRizqi",
+    "phone": "0192298176",
+    "username": "admin",
+    "password": "admin123"
+  },
+  {
+    "id": "USR-1001",
+    "role": "penyewa",
+    "name": "Aida Muhamad",
+    "phone": "016-2020209",
+    "ic": "900101-08-5432",
+    "email": "aida@example.com",
+    "address": "Pusat Kegiatan Masyarakat Kemas Parlimen Kuala Kedah, Jln Tunku Abdul Rahman, Kg Kuala Sungai, 06250 Alor Setar, Kedah",
+    "password": "1234"
+  },
+  {
+    "id": "USR-0376",
+    "role": "penyewa",
+    "name": "ABDUL",
+    "phone": "0198668635",
+    "ic": "810316025699",
+    "email": "",
+    "address": "SP",
+    "password": "1234"
+  },
+  {
+    "id": "USR-1040",
+    "role": "penyewa",
+    "name": "ABDUL123",
+    "phone": "0198668634",
+    "ic": "810316025699",
+    "email": "",
+    "address": "SP",
+    "password": "1234"
+  },
+  {
+    "id": "USR-1312",
+    "role": "penyewa",
+    "name": "abu",
+    "phone": "0194218635",
+    "ic": "222",
+    "email": "",
+    "address": "guv",
+    "password": "1234"
+  }
+]
