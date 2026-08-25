@@ -1093,6 +1093,15 @@ function attemptClosePaymentModal() {
   closeModal('modal-payment');
 }
 
+function readFileAsDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve(e.target.result);
+    reader.onerror = (e) => reject(e);
+    reader.readAsDataURL(file);
+  });
+}
+
 async function handleUploadProofSubmit(e) {
   e.preventDefault();
   const bookingId = document.getElementById('upload-booking-id').value;
@@ -1110,6 +1119,13 @@ async function handleUploadProofSubmit(e) {
     return;
   }
 
+  let imageDataUrl = '';
+  try {
+    imageDataUrl = await readFileAsDataURL(fileInput.files[0]);
+  } catch (err) {
+    console.error('Error reading image file:', err);
+  }
+
   const formData = new FormData();
   formData.append('proofImage', fileInput.files[0]);
   formData.append('paidAmount', userPaidAmount);
@@ -1122,6 +1138,11 @@ async function handleUploadProofSubmit(e) {
     if (res.ok) {
       const data = await res.json();
       if (data.success) {
+        const booking = bookingsData.find(b => b.id === bookingId);
+        if (booking) {
+          booking.proofImage = data.proofImage || imageDataUrl;
+          booking.paidAmount = userPaidAmount;
+        }
         activePendingUploadBookingId = null;
         closeModal('modal-payment');
         alert('🎉 Bukti pembayaran berjaya dimuat naik! Perkiraan resit telah dikemaskini.');
@@ -1131,12 +1152,12 @@ async function handleUploadProofSubmit(e) {
       }
     }
   } catch (err) {
-    console.log('API unavailable, handling upload in LocalStorage...');
+    console.log('API unavailable, handling upload in LocalStorage with actual image Data URL...');
   }
 
   const booking = bookingsData.find(b => b.id === bookingId);
   if (booking) {
-    booking.proofImage = 'https://ui-avatars.com/api/?name=Resit+Bayaran&background=10b981&color=fff';
+    booking.proofImage = imageDataUrl || booking.proofImage;
     booking.paidAmount = userPaidAmount;
     booking.accommodationTotal = booking.nights * 350;
     booking.securityDeposit = 100;
@@ -1414,9 +1435,17 @@ function viewProofModal(bookingId) {
 
   const imgContainer = document.getElementById('proof-image-container');
   if (imgContainer) {
-    if (booking.proofImage) {
-      const proofImgUrl = booking.proofImage.startsWith('http') ? booking.proofImage : `${API_BASE}${booking.proofImage}`;
-      imgContainer.innerHTML = `<img src="${proofImgUrl}" alt="Bukti Bayaran" class="max-h-64 object-contain mx-auto rounded-lg">`;
+    if (booking.proofImage && !booking.proofImage.includes('ui-avatars.com')) {
+      const proofImgUrl = booking.proofImage.startsWith('http') || booking.proofImage.startsWith('data:') 
+        ? booking.proofImage 
+        : `${API_BASE}${booking.proofImage}`;
+
+      imgContainer.innerHTML = `
+        <div class="space-y-2 text-center w-full">
+          <img src="${proofImgUrl}" alt="Bukti Bayaran" class="max-h-80 object-contain mx-auto rounded-lg shadow-sm border border-slate-200 cursor-pointer" onclick="window.open('${proofImgUrl}', '_blank')">
+          <p class="text-[10px] text-slate-400">🔍 Klik gambar di atas untuk lihat saiz penuh</p>
+        </div>
+      `;
     } else {
       imgContainer.innerHTML = `<p class="text-xs text-slate-500 py-6">💵 Kaedah Bayaran: <strong>${booking.paymentMethod || 'Tunai'}</strong> (Tiada fail resit dimuat naik).</p>`;
     }
