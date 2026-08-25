@@ -569,33 +569,66 @@
   </div>
 
 
-  <!-- 4. PROOF PREVIEW & STATUS EDIT MODAL (ADMIN) -->
+  <!-- 4. FULL BOOKING DETAILS & ADMIN APPROVAL MODAL -->
   <div id="modal-proof-view" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop">
-    <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-slate-200">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-xl w-full max-h-[95vh] overflow-y-auto border border-slate-200">
       <div class="bg-navy-900 p-4 text-white flex justify-between items-center border-b-2 border-gold-500">
         <h3 class="font-bold text-base brand-title flex items-center gap-2">
-          <i data-lucide="image" class="w-5 h-5 text-gold-500"></i> Semak Bukti Pembayaran
+          <i data-lucide="file-text" class="w-5 h-5 text-gold-500"></i> Maklumat Lengkap & Pengesahan Tempahan
         </h3>
         <button onclick="closeModal('modal-proof-view')" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
       </div>
 
-      <div class="p-5 space-y-4 text-center">
-        <div id="proof-image-container" class="bg-slate-100 p-2 rounded-xl border border-slate-200 min-h-[200px] flex items-center justify-center">
-          <!-- Proof Image -->
+      <div class="p-5 space-y-4">
+        <!-- Status Banner -->
+        <div id="pv-status-banner" class="p-3 rounded-xl text-center text-xs font-bold bg-amber-50 text-amber-800 border border-amber-300">
+          Status: ⏳ MENUNGGU PENGESAHAN ADMIN
         </div>
 
-        <div class="space-y-2 text-left bg-slate-50 p-3 rounded-xl text-xs">
-          <p><strong>Nama Tetamu:</strong> <span id="pv-guest-name"></span></p>
-          <p><strong>Jumlah Bayaran:</strong> RM <span id="pv-amount"></span></p>
-          <p><strong>No. Telefon:</strong> <span id="pv-phone"></span></p>
+        <!-- Details Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
+            <h4 class="font-bold text-navy-900 uppercase border-b border-slate-200 pb-1 mb-1">Maklumat Tetamu</h4>
+            <p><strong>Nama:</strong> <span id="pv-guest-name"></span></p>
+            <p><strong>No. Telefon:</strong> <span id="pv-phone"></span></p>
+            <p><strong>Alamat:</strong> <span id="pv-address"></span></p>
+          </div>
+
+          <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
+            <h4 class="font-bold text-navy-900 uppercase border-b border-slate-200 pb-1 mb-1">Maklumat Penginapan</h4>
+            <p><strong>ID Tempahan:</strong> <span id="pv-id" class="font-bold text-navy-900"></span></p>
+            <p><strong>Check-in:</strong> <span id="pv-checkin"></span> (2 PM)</p>
+            <p><strong>Check-out:</strong> <span id="pv-checkout"></span> (12 PM)</p>
+            <p><strong>Tetamu / Kenderaan:</strong> <span id="pv-guests-vehicles"></span></p>
+          </div>
         </div>
 
-        <div class="flex gap-2">
+        <!-- Financial Summary Card -->
+        <div class="bg-gold-50/70 p-3.5 rounded-xl border border-gold-500/30 text-xs space-y-1">
+          <div class="flex justify-between"><span>Harga Penginapan:</span><strong id="pv-acc-total">RM 0.00</strong></div>
+          <div class="flex justify-between"><span>Deposit Sekuriti:</span><strong id="pv-deposit">RM 100.00</strong></div>
+          <hr class="border-gold-500/30 my-1">
+          <div class="flex justify-between font-bold text-navy-900"><span>Jumlah Keseluruhan:</span><strong id="pv-grand-total">RM 0.00</strong></div>
+          <div class="flex justify-between text-emerald-700"><span>Telah Dibayar / Di-transfer:</span><strong id="pv-paid-amount">RM 0.00</strong></div>
+          <div class="flex justify-between text-red-700 font-bold"><span>Baki Bayaran:</span><strong id="pv-balance">RM 0.00</strong></div>
+          <div class="text-[11px] text-slate-500 mt-1">Kaedah Bayaran: <strong id="pv-payment-method" class="text-navy-900"></strong></div>
+        </div>
+
+        <!-- Proof Image Section -->
+        <div>
+          <h4 class="text-xs font-bold text-slate-700 mb-1">Bukti Pembayaran:</h4>
+          <div id="proof-image-container" class="bg-slate-100 p-2 rounded-xl border border-slate-200 min-h-[160px] flex items-center justify-center">
+            <!-- Proof Image -->
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex flex-wrap gap-2 pt-2 border-t border-slate-200">
           <button onclick="approveBookingStatus('DISAHKAN')" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow">
-            <i data-lucide="check" class="w-4 h-4"></i> Sahkan Tempahan (Approve)
+            <i data-lucide="check-circle" class="w-4 h-4"></i> Sahkan Tempahan (Approve)
           </button>
           <button onclick="approveBookingStatus('BATAL')" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow">
-            <i data-lucide="x" class="w-4 h-4"></i> Tolak / Batal
+            <i data-lucide="x-circle" class="w-4 h-4"></i> Tolak / Batal
           </button>
         </div>
       </div>

@@ -1215,26 +1215,29 @@ function renderBookingsTable() {
           <span class="px-2.5 py-1 rounded-full text-xs font-bold border ${statusClass}">${b.status}</span>
         </td>
         <td class="p-3 text-center">
-          <div class="flex items-center justify-center gap-1.5">
-            ${b.proofImage ? `
-              <button onclick="viewProofModal('${b.id}')" title="Semak Bukti Bayaran" class="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100">
-                <i data-lucide="image" class="w-4 h-4"></i>
+          <div class="flex flex-col sm:flex-row items-center justify-center gap-1.5">
+            <button onclick="viewProofModal('${b.id}')" title="Lihat Maklumat Tempahan & Bukti" class="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-sm transition">
+              <i data-lucide="eye" class="w-3.5 h-3.5"></i> Maklumat
+            </button>
+            ${b.status === 'MENUNGGU PENGESAHAN' ? `
+              <button onclick="quickApproveBooking('${b.id}')" title="Sahkan Tempahan Ini" class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-sm transition">
+                <i data-lucide="check-circle" class="w-3.5 h-3.5"></i> Sahkan
               </button>
             ` : ''}
-            <button onclick="openWhatsAppModal('${b.id}')" title="Jana WhatsApp" class="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100">
-              <i data-lucide="message-square" class="w-4 h-4"></i>
-            </button>
-            ${showReceiptBtn ? `
+            <div class="flex items-center gap-1">
+              <button onclick="openWhatsAppModal('${b.id}')" title="Jana WhatsApp" class="p-1.5 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-lg hover:bg-emerald-100">
+                <i data-lucide="message-square" class="w-4 h-4"></i>
+              </button>
               <button onclick="printReceiptDoc('${b.id}')" title="Cetak Resit" class="p-1.5 bg-navy-900 text-gold-500 rounded-lg hover:bg-navy-800">
                 <i data-lucide="receipt" class="w-4 h-4"></i>
               </button>
-              <button onclick="printInvoiceDoc('${b.id}')" title="Cetak Invois" class="p-1.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200">
+              <button onclick="printInvoiceDoc('${b.id}')" title="Cetak Invois" class="p-1.5 bg-slate-100 text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-200">
                 <i data-lucide="file-text" class="w-4 h-4"></i>
               </button>
-            ` : ''}
-            <button onclick="deleteBooking('${b.id}')" title="Padam Tempahan" class="p-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100">
-              <i data-lucide="trash-2" class="w-4 h-4"></i>
-            </button>
+              <button onclick="deleteBooking('${b.id}')" title="Padam Tempahan" class="p-1.5 bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+              </button>
+            </div>
           </div>
         </td>
       </tr>
