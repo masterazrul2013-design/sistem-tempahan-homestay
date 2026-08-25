@@ -62,8 +62,11 @@
       <div class="flex items-center gap-3">
         <div id="user-info-bar" class="hidden flex items-center gap-2 bg-navy-800 px-3 py-1.5 rounded-xl border border-gold-500/30">
           <i data-lucide="user-check" class="w-4 h-4 text-gold-500"></i>
-          <span id="current-user-name" class="text-xs font-semibold text-white">Pengguna</span>
-          <span id="current-user-role" class="text-[10px] bg-gold-500 text-navy-900 px-2 py-0.5 rounded-full font-bold uppercase">Role</span>
+          <button onclick="openUserProfileModal()" class="flex items-center gap-1.5 hover:underline text-left" title="Kemaskini Profil & Tukar Kata Laluan">
+            <span id="current-user-name" class="text-xs font-semibold text-white">Pengguna</span>
+            <span id="current-user-role" class="text-[10px] bg-gold-500 text-navy-900 px-2 py-0.5 rounded-full font-bold uppercase">Role</span>
+            <i data-lucide="edit-3" class="w-3.5 h-3.5 text-gold-500 ml-0.5"></i>
+          </button>
           <button onclick="logout()" title="Log Keluar" class="ml-2 text-slate-300 hover:text-red-400">
             <i data-lucide="log-out" class="w-4 h-4"></i>
           </button>
@@ -106,7 +109,11 @@
         </button>
 
         <button id="tab-penyewa-list" onclick="switchTab('penyewa-list')" class="w-full text-left px-3 py-2.5 rounded-xl text-xs font-medium flex items-center gap-2 transition text-slate-600 hover:bg-slate-100 hidden">
-          <i data-lucide="users" class="w-4 h-4 text-gold-500"></i> Pengurusan Admin (Penyewa)
+          <i data-lucide="users" class="w-4 h-4 text-gold-500"></i> Pengurusan Admin (Tempahan)
+        </button>
+
+        <button id="tab-users-list" onclick="switchTab('users-list')" class="w-full text-left px-3 py-2.5 rounded-xl text-xs font-medium flex items-center gap-2 transition text-slate-600 hover:bg-slate-100 hidden">
+          <i data-lucide="shield-check" class="w-4 h-4 text-gold-500"></i> Pengurusan User (Admin)
         </button>
       </nav>
 
@@ -155,7 +162,7 @@
           <form id="single-form-login" onsubmit="handleSingleLoginSubmit(event)" class="space-y-3">
             <div>
               <label class="block text-xs font-bold text-slate-700 mb-1">No. Telefon ATAU ID Pengguna <span class="text-red-500">*</span></label>
-              <input type="text" id="single-login-id" required placeholder="Cth: 0162020209 atau admin" class="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-navy-900 focus:outline-none">
+              <input type="text" id="single-login-id" required placeholder="Cth: 0192298176 atau admin" class="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-navy-900 focus:outline-none">
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-700 mb-1">Kata Laluan <span class="text-red-500">*</span></label>
@@ -326,6 +333,42 @@
 
           <div id="my-bookings-container" class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <!-- Rendered dynamically -->
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 4: TAB PENGURUSAN USER (ADMIN ONLY) -->
+      <div id="view-users-list" class="hidden space-y-4">
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h3 class="text-lg font-bold text-navy-900 flex items-center gap-2">
+                <i data-lucide="shield-check" class="w-5 h-5 text-gold-500"></i> Pengurusan Pengguna (User Management)
+              </h3>
+              <p class="text-xs text-slate-500">Semak maklumat pengguna berdaftar, reset kata laluan atau padam akaun.</p>
+            </div>
+            <div class="relative">
+              <input type="text" id="search-user-input" onkeyup="renderUsersTable()" placeholder="Cari nama, no. tel, IC..." class="pl-9 pr-4 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-navy-900 focus:outline-none w-64">
+              <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
+            </div>
+          </div>
+
+          <!-- USERS TABLE -->
+          <div class="overflow-x-auto rounded-xl border border-slate-200">
+            <table class="w-full text-left text-sm text-slate-700">
+              <thead class="bg-navy-900 text-white text-xs uppercase font-semibold">
+                <tr>
+                  <th class="p-3">ID & Nama Pengguna</th>
+                  <th class="p-3">No. Telefon & IC</th>
+                  <th class="p-3">Alamat Kediaman</th>
+                  <th class="p-3">Peranan (Role)</th>
+                  <th class="p-3 text-center">Tindakan Admin</th>
+                </tr>
+              </thead>
+              <tbody id="users-table-body" class="divide-y divide-slate-200">
+                <!-- Loaded dynamically -->
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -560,7 +603,7 @@
   </div>
 
 
-  <!-- 5. PRINT RECEIPT / INVOICE VIEW MODAL (WITH QUICK PAYMENT METHOD SWITCHER) -->
+  <!-- 5. PRINT RECEIPT / INVOICE VIEW MODAL -->
   <div id="modal-print-view" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop">
     <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[95vh] flex flex-col border border-slate-200">
       <div class="bg-navy-900 p-4 text-white flex justify-between items-center no-print">
@@ -587,6 +630,86 @@
       <div class="p-4 flex-grow overflow-y-auto bg-slate-200" id="print-container">
         <!-- Rendered Receipt / Invoice Document -->
       </div>
+    </div>
+  </div>
+
+
+  <!-- 6. USER PROFILE EDIT & CHANGE PASSWORD MODAL (FOR ALL LOGGED IN USERS) -->
+  <div id="modal-user-profile" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto border border-slate-200">
+      
+      <div class="bg-navy-900 p-4 text-white flex justify-between items-center border-b-2 border-gold-500">
+        <h3 class="font-bold text-base brand-title flex items-center gap-2">
+          <i data-lucide="user-cog" class="w-5 h-5 text-gold-500"></i> Kemaskini Profil & Kata Laluan
+        </h3>
+        <button onclick="closeModal('modal-user-profile')" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+
+      <form onsubmit="handleProfileUpdateSubmit(event)" class="p-5 space-y-3.5">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Nama Penuh <span class="text-red-500">*</span></label>
+          <input type="text" id="edit-profile-name" required class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-navy-900 focus:outline-none">
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">No. Telefon <span class="text-red-500">*</span></label>
+            <input type="tel" id="edit-profile-phone" required class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-navy-900 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">No. KP (KTP/IC)</label>
+            <input type="text" id="edit-profile-ic" placeholder="No. Kad Pengenalan" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-navy-900 focus:outline-none">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Alamat Kediaman</label>
+          <input type="text" id="edit-profile-address" placeholder="Alamat penuh..." class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-navy-900 focus:outline-none">
+        </div>
+
+        <div class="bg-amber-50 p-3 rounded-xl border border-gold-500/40 space-y-2">
+          <label class="block text-xs font-bold text-navy-900">🔒 Tukar Kata Laluan Baharu (Biarkan kosong jika tidak tukar)</label>
+          <input type="password" id="edit-profile-password" placeholder="Masukkan kata laluan baharu..." class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white focus:ring-2 focus:ring-navy-900 focus:outline-none">
+        </div>
+
+        <button type="submit" class="w-full bg-navy-900 hover:bg-navy-800 text-gold-500 font-bold py-3 rounded-xl shadow-md text-xs transition flex items-center justify-center gap-2">
+          <i data-lucide="save" class="w-4 h-4"></i> Simpan Kemaskini Profil
+        </button>
+      </form>
+
+    </div>
+  </div>
+
+
+  <!-- 7. ADMIN RESET USER PASSWORD MODAL -->
+  <div id="modal-admin-reset-pwd" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full border border-slate-200">
+      
+      <div class="bg-navy-900 p-4 text-white flex justify-between items-center border-b-2 border-gold-500">
+        <h3 class="font-bold text-base brand-title flex items-center gap-2">
+          <i data-lucide="key-round" class="w-5 h-5 text-gold-500"></i> Admin: Reset Kata Laluan User
+        </h3>
+        <button onclick="closeModal('modal-admin-reset-pwd')" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+
+      <form onsubmit="handleAdminResetPasswordSubmit(event)" class="p-5 space-y-4">
+        <input type="hidden" id="reset-target-user-id">
+
+        <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs text-slate-700">
+          <p>Pengguna: <strong id="reset-user-display-name" class="text-navy-900 font-bold"></strong></p>
+          <p class="text-[11px] text-slate-500">Set kata laluan baharu untuk pengguna ini.</p>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-navy-900 mb-1">Kata Laluan Baharu <span class="text-red-500">*</span></label>
+          <input type="text" id="reset-new-password" required placeholder="Cth: 123456" class="w-full px-3 py-2.5 border-2 border-navy-900 rounded-xl text-sm font-bold text-navy-900 focus:ring-2 focus:ring-navy-900 focus:outline-none">
+        </div>
+
+        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow-md text-xs transition flex items-center justify-center gap-2">
+          <i data-lucide="check-circle" class="w-4 h-4"></i> Kemaskini Kata Laluan User
+        </button>
+      </form>
+
     </div>
   </div>
 

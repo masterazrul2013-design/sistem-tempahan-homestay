@@ -125,6 +125,45 @@ app.post('/api/auth/register', (req, res) => {
   res.json({ success: true, user: newUser, message: 'Pendaftaran Berjaya!' });
 });
 
+// --- User Management Routes ---
+app.get('/api/users', (req, res) => {
+  const users = readJSON(USERS_FILE);
+  res.json(users);
+});
+
+app.put('/api/users/:id', (req, res) => {
+  const users = readJSON(USERS_FILE);
+  const index = users.findIndex(u => u.id === req.params.id);
+  if (index === -1) return res.status(404).json({ success: false, message: 'Pengguna tidak dijumpai!' });
+
+  const updatedUser = { ...users[index], ...req.body };
+  users[index] = updatedUser;
+  writeJSON(USERS_FILE, users);
+
+  res.json({ success: true, user: updatedUser, message: 'Maklumat pengguna berjaya dikemaskini!' });
+});
+
+app.put('/api/users/:id/reset-password', (req, res) => {
+  const { newPassword } = req.body;
+  if (!newPassword) return res.status(400).json({ success: false, message: 'Sila masukkan kata laluan baharu!' });
+
+  const users = readJSON(USERS_FILE);
+  const user = users.find(u => u.id === req.params.id);
+  if (!user) return res.status(404).json({ success: false, message: 'Pengguna tidak dijumpai!' });
+
+  user.password = newPassword;
+  writeJSON(USERS_FILE, users);
+
+  res.json({ success: true, user, message: `Kata laluan untuk ${user.name} berjaya di-reset!` });
+});
+
+app.delete('/api/users/:id', (req, res) => {
+  let users = readJSON(USERS_FILE);
+  const filtered = users.filter(u => u.id !== req.params.id);
+  writeJSON(USERS_FILE, filtered);
+  res.json({ success: true, message: 'Pengguna berjaya dipadam!' });
+});
+
 // --- Booking Routes ---
 app.get('/api/bookings', (req, res) => {
   const { userId } = req.query;

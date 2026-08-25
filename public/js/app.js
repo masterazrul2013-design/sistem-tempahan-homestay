@@ -4,119 +4,20 @@ const API_BASE = window.location.protocol.startsWith('http') ? '' : 'http://loca
 
 let currentUser = null;
 let bookingsData = [];
+let usersData = [];
 let calendar = null;
 let activeProofBookingId = null;
 let activePendingUploadBookingId = null;
 let activeReceiptBookingId = null;
 let activeReceiptType = 'RESIT PEMBAYARAN';
 
-// Default Fallback Accounts for GitHub Pages / Static Hosting
+// Default Fallback Admin Account ONLY (All dummy users cleared)
 const DEFAULT_USERS = [
-  { id: 'USR-ADMIN', username: 'admin', phone: '0192298176', name: 'Pengurusan SofiaRizqi', role: 'admin', password: '1234' },
-  { id: 'USR-1001', username: 'aida', phone: '0162020209', name: 'Aida Muhamad', role: 'penyewa', password: '1234' },
-  { id: 'USR-1040', username: 'abdul123', phone: '0198668634', name: 'ABDUL123', role: 'penyewa', password: '1234' },
-  { id: 'USR-1312', username: 'abu', phone: '0194218635', name: 'abu', role: 'penyewa', password: '1234' }
+  { id: 'USR-ADMIN', username: 'admin', phone: '0192298176', name: 'Pengurusan SofiaRizqi', role: 'admin', password: '1234', createdAt: '2026-08-25T00:00:00.000Z' }
 ];
 
-// Default Fallback Bookings for GitHub Pages / Static Hosting
-const DEFAULT_BOOKINGS = [
-  {
-    id: 'SRH3905',
-    receiptNo: 'SRH-0001',
-    invoiceNo: 'INV-0001',
-    userId: 'USR-1040',
-    guestName: 'ABDUL123',
-    guestPhone: '0198668634',
-    guestAddress: 'SP',
-    homestayName: 'SofiaRizqi Homestay',
-    checkInDate: '2026-09-04',
-    checkInTime: '2 petang',
-    checkOutDate: '2026-09-05',
-    checkOutTime: '12.00 Tengahari',
-    guestCount: '2',
-    vehicleNumbers: 'vrv',
-    purpose: 'vv',
-    nights: 1,
-    ratePerNight: 350,
-    accommodationTotal: 350,
-    securityDeposit: 100,
-    grandTotal: 450,
-    paidAmount: 450,
-    balancePayment: 0,
-    paymentMethod: 'Tunai',
-    status: 'DISAHKAN',
-    depositReceived: true,
-    fullPaymentReceived: true,
-    paymentDate: '2026-08-25',
-    receivedBy: 'Pengurusan SofiaRizqi',
-    proofImage: '',
-    createdAt: '2026-08-25T14:03:22.642Z'
-  },
-  {
-    id: 'SRH4938',
-    receiptNo: 'SRH-0002',
-    invoiceNo: 'INV-0002',
-    userId: 'USR-1312',
-    guestName: 'abu',
-    guestPhone: '0194218635',
-    guestAddress: 'guv',
-    homestayName: 'SofiaRizqi Homestay',
-    checkInDate: '2026-09-02',
-    checkInTime: '2 petang',
-    checkOutDate: '2026-09-03',
-    checkOutTime: '12.00 Tengahari',
-    guestCount: '2',
-    vehicleNumbers: 'hhh',
-    purpose: 'dd',
-    nights: 1,
-    ratePerNight: 350,
-    accommodationTotal: 350,
-    securityDeposit: 100,
-    grandTotal: 450,
-    paidAmount: 100,
-    balancePayment: 350,
-    paymentMethod: 'Tunai',
-    status: 'DISAHKAN',
-    depositReceived: true,
-    fullPaymentReceived: false,
-    paymentDate: '2026-08-25',
-    receivedBy: 'Pengurusan SofiaRizqi',
-    proofImage: '',
-    createdAt: '2026-08-25T14:13:46.162Z'
-  },
-  {
-    id: 'SRH6683',
-    receiptNo: 'SRH-0003',
-    invoiceNo: 'INV-0003',
-    userId: 'USR-1001',
-    guestName: 'Aida Muhamad',
-    guestPhone: '016-2020209',
-    guestAddress: 'Pusat Kegiatan Masyarakat Kemas Parlimen Kuala Kedah, Jln Tunku Abdul Rahman, Kg Kuala Sungai, 06250 Alor Setar, Kedah',
-    homestayName: 'SofiaRizqi Homestay',
-    checkInDate: '2026-09-09',
-    checkInTime: '2 petang',
-    checkOutDate: '2026-09-10',
-    checkOutTime: '12.00 Tengahari',
-    guestCount: '2',
-    vehicleNumbers: 'hhh',
-    purpose: 'dd',
-    nights: 1,
-    ratePerNight: 350,
-    accommodationTotal: 350,
-    securityDeposit: 100,
-    grandTotal: 450,
-    paidAmount: 100,
-    balancePayment: 350,
-    paymentMethod: 'Tunai',
-    status: 'DISAHKAN',
-    depositReceived: true,
-    fullPaymentReceived: false,
-    paymentDate: '2026-08-25',
-    receivedBy: 'Pengurusan SofiaRizqi',
-    proofImage: '',
-    createdAt: '2026-08-25T14:16:11.672Z'
-  }
-];
+// Default Fallback Bookings
+const DEFAULT_BOOKINGS = [];
 
 // Safe icon renderer
 function safeRenderIcons() {
@@ -152,6 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
   checkAuthSession();
   initCalendar();
   fetchBookings();
+  fetchUsers();
 });
 
 // Left Sidebar Navigation Toggle Hide / Show
@@ -194,6 +96,7 @@ function updateUIForAuth() {
   const authButtons = document.getElementById('auth-buttons');
   const tabLoginMenu = document.getElementById('tab-login-menu');
   const tabPenyewaList = document.getElementById('tab-penyewa-list');
+  const tabUsersList = document.getElementById('tab-users-list');
   const tabMyBookings = document.getElementById('tab-my-bookings');
   const statsOverview = document.getElementById('stats-overview-container');
 
@@ -209,10 +112,12 @@ function updateUIForAuth() {
 
     if (currentUser.role === 'admin') {
       if (tabPenyewaList) tabPenyewaList.classList.remove('hidden');
+      if (tabUsersList) tabUsersList.classList.remove('hidden');
       if (tabMyBookings) tabMyBookings.classList.add('hidden');
       if (statsOverview) statsOverview.classList.remove('hidden');
     } else {
       if (tabPenyewaList) tabPenyewaList.classList.add('hidden');
+      if (tabUsersList) tabUsersList.classList.add('hidden');
       if (tabMyBookings) tabMyBookings.classList.remove('hidden');
       if (statsOverview) statsOverview.classList.add('hidden');
     }
@@ -221,12 +126,14 @@ function updateUIForAuth() {
     if (authButtons) authButtons.classList.remove('hidden');
     if (tabLoginMenu) tabLoginMenu.classList.remove('hidden');
     if (tabPenyewaList) tabPenyewaList.classList.add('hidden');
+    if (tabUsersList) tabUsersList.classList.add('hidden');
     if (tabMyBookings) tabMyBookings.classList.add('hidden');
     if (statsOverview) statsOverview.classList.add('hidden');
   }
 
   updateCalendarEvents();
   renderMyBookings();
+  renderUsersTable();
   safeRenderIcons();
 }
 
@@ -298,9 +205,9 @@ async function handleSingleLoginSubmit(e) {
     console.log('API unavailable, falling back to LocalStorage Auth...');
   }
 
-  // LocalStorage Fallback Auth for GitHub Pages / Static Hosting
+  // LocalStorage Fallback Auth
   let localUsers = JSON.parse(localStorage.getItem('sofia_users') || 'null');
-  if (!localUsers) {
+  if (!localUsers || localUsers.length === 0) {
     localUsers = DEFAULT_USERS;
     localStorage.setItem('sofia_users', JSON.stringify(localUsers));
   }
@@ -345,6 +252,7 @@ async function handleSingleRegisterSubmit(e) {
         currentUser = data.user;
         localStorage.setItem('sofia_user', JSON.stringify(currentUser));
         updateUIForAuth();
+        await fetchUsers();
         alert('Pendaftaran Berjaya! Akaun anda telah didaftarkan.');
         switchTab('dashboard');
         return;
@@ -364,7 +272,8 @@ async function handleSingleRegisterSubmit(e) {
     ic,
     address,
     password,
-    role: 'penyewa'
+    role: 'penyewa',
+    createdAt: new Date().toISOString()
   };
 
   localUsers.push(newUser);
@@ -373,6 +282,7 @@ async function handleSingleRegisterSubmit(e) {
   currentUser = newUser;
   localStorage.setItem('sofia_user', JSON.stringify(currentUser));
   updateUIForAuth();
+  fetchUsers();
   alert('Pendaftaran Berjaya! Akaun anda telah didaftarkan.');
   switchTab('dashboard');
 }
@@ -387,23 +297,178 @@ function closeModal(id) {
   if (el) el.classList.add('hidden');
 }
 
+// User Profile Edit & Change Password Modal
+function openUserProfileModal() {
+  if (!currentUser) return;
+  document.getElementById('edit-profile-name').value = currentUser.name || '';
+  document.getElementById('edit-profile-phone').value = currentUser.phone || '';
+  document.getElementById('edit-profile-ic').value = currentUser.ic || '';
+  document.getElementById('edit-profile-address').value = currentUser.address || '';
+  document.getElementById('edit-profile-password').value = '';
+  openModal('modal-user-profile');
+}
+
+async function handleProfileUpdateSubmit(e) {
+  e.preventDefault();
+  if (!currentUser) return;
+
+  const name = document.getElementById('edit-profile-name').value.trim();
+  const phone = document.getElementById('edit-profile-phone').value.trim();
+  const ic = document.getElementById('edit-profile-ic').value.trim();
+  const address = document.getElementById('edit-profile-address').value.trim();
+  const newPassword = document.getElementById('edit-profile-password').value.trim();
+
+  const payload = { name, phone, ic, address };
+  if (newPassword) payload.password = newPassword;
+
+  try {
+    const res = await fetch(`${API_BASE}/api/users/${currentUser.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success) {
+        currentUser = data.user;
+        localStorage.setItem('sofia_user', JSON.stringify(currentUser));
+        updateUIForAuth();
+        closeModal('modal-user-profile');
+        alert('🎉 Profil & kata laluan anda berjaya dikemaskini!');
+        return;
+      }
+    }
+  } catch (err) {
+    console.log('API unavailable, updating profile in LocalStorage...');
+  }
+
+  // LocalStorage Fallback Profile Update
+  currentUser.name = name;
+  currentUser.phone = phone;
+  currentUser.ic = ic;
+  currentUser.address = address;
+  if (newPassword) currentUser.password = newPassword;
+
+  localStorage.setItem('sofia_user', JSON.stringify(currentUser));
+
+  let localUsers = JSON.parse(localStorage.getItem('sofia_users') || 'null');
+  if (localUsers) {
+    const idx = localUsers.findIndex(u => u.id === currentUser.id);
+    if (idx !== -1) {
+      localUsers[idx] = currentUser;
+      localStorage.setItem('sofia_users', JSON.stringify(localUsers));
+    }
+  }
+
+  updateUIForAuth();
+  closeModal('modal-user-profile');
+  alert('🎉 Profil & kata laluan anda berjaya dikemaskini!');
+}
+
+// Admin Reset Password Modal
+function openAdminResetPasswordModal(userId) {
+  const user = usersData.find(u => u.id === userId);
+  if (!user) return;
+
+  document.getElementById('reset-target-user-id').value = user.id;
+  document.getElementById('reset-user-display-name').innerText = `${user.name} (${user.phone})`;
+  document.getElementById('reset-new-password').value = '';
+  openModal('modal-admin-reset-pwd');
+}
+
+async function handleAdminResetPasswordSubmit(e) {
+  e.preventDefault();
+  const userId = document.getElementById('reset-target-user-id').value;
+  const newPassword = document.getElementById('reset-new-password').value.trim();
+
+  if (!newPassword) {
+    alert('Sila masukkan kata laluan baharu!');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/api/users/${userId}/reset-password`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ newPassword })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success) {
+        closeModal('modal-admin-reset-pwd');
+        alert(`🔑 ${data.message}`);
+        await fetchUsers();
+        return;
+      }
+    }
+  } catch (err) {
+    console.log('API unavailable, resetting password in LocalStorage...');
+  }
+
+  // LocalStorage Reset Password Fallback
+  let localUsers = JSON.parse(localStorage.getItem('sofia_users') || 'null');
+  if (localUsers) {
+    const target = localUsers.find(u => u.id === userId);
+    if (target) {
+      target.password = newPassword;
+      localStorage.setItem('sofia_users', JSON.stringify(localUsers));
+    }
+  }
+  closeModal('modal-admin-reset-pwd');
+  alert(`🔑 Kata laluan berjaya di-reset kepada: ${newPassword}`);
+  fetchUsers();
+}
+
+async function deleteUser(userId) {
+  const target = usersData.find(u => u.id === userId);
+  if (!target) return;
+
+  if (target.role === 'admin') {
+    alert('⚠️ Akaun Admin Utama tidak boleh dipadam!');
+    return;
+  }
+
+  if (!confirm(`Adakah anda pasti mahu MEMADAM akaun pengguna ${target.name} (${target.phone})?`)) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/api/users/${userId}`, { method: 'DELETE' });
+    if (res.ok) {
+      alert(`🎉 Akaun pengguna ${target.name} telah dipadam!`);
+      await fetchUsers();
+      return;
+    }
+  } catch (err) {
+    console.log('API unavailable, deleting user in LocalStorage...');
+  }
+
+  let localUsers = JSON.parse(localStorage.getItem('sofia_users') || 'null');
+  if (localUsers) {
+    localUsers = localUsers.filter(u => u.id !== userId);
+    localStorage.setItem('sofia_users', JSON.stringify(localUsers));
+  }
+  alert(`🎉 Akaun pengguna ${target.name} telah dipadam!`);
+  fetchUsers();
+}
+
 // Navigation Tabs Switcher
 function switchTab(tabId) {
   const viewLoginMenu = document.getElementById('view-login-menu');
   const viewDash = document.getElementById('view-dashboard');
   const viewPenyewa = document.getElementById('view-penyewa-list');
+  const viewUsers = document.getElementById('view-users-list');
   const viewMyBookings = document.getElementById('view-my-bookings');
 
   const btnLoginMenu = document.getElementById('tab-login-menu');
   const btnDash = document.getElementById('tab-dashboard');
   const btnPenyewa = document.getElementById('tab-penyewa-list');
+  const btnUsers = document.getElementById('tab-users-list');
   const btnMyBookings = document.getElementById('tab-my-bookings');
 
-  [viewLoginMenu, viewDash, viewPenyewa, viewMyBookings].forEach(v => {
+  [viewLoginMenu, viewDash, viewPenyewa, viewUsers, viewMyBookings].forEach(v => {
     if (v) v.classList.add('hidden');
   });
 
-  [btnLoginMenu, btnDash, btnPenyewa, btnMyBookings].forEach(b => {
+  [btnLoginMenu, btnDash, btnPenyewa, btnUsers, btnMyBookings].forEach(b => {
     if (b) {
       b.classList.remove('bg-navy-900', 'text-gold-500', 'shadow', 'font-bold');
       b.classList.add('text-slate-600', 'hover:bg-slate-100', 'font-medium');
@@ -431,6 +496,13 @@ function switchTab(tabId) {
       btnPenyewa.classList.remove('text-slate-600', 'hover:bg-slate-100', 'font-medium');
     }
     renderBookingsTable();
+  } else if (tabId === 'users-list') {
+    if (viewUsers) viewUsers.classList.remove('hidden');
+    if (btnUsers) {
+      btnUsers.classList.add('bg-navy-900', 'text-gold-500', 'shadow', 'font-bold');
+      btnUsers.classList.remove('text-slate-600', 'hover:bg-slate-100', 'font-medium');
+    }
+    renderUsersTable();
   } else if (tabId === 'my-bookings') {
     if (viewMyBookings) viewMyBookings.classList.remove('hidden');
     if (btnMyBookings) {
@@ -439,6 +511,83 @@ function switchTab(tabId) {
     }
     renderMyBookings();
   }
+  safeRenderIcons();
+}
+
+// Fetch Users List
+async function fetchUsers() {
+  try {
+    const res = await fetch(`${API_BASE}/api/users`);
+    if (res.ok) {
+      usersData = await res.json();
+      localStorage.setItem('sofia_users', JSON.stringify(usersData));
+    } else {
+      throw new Error('Users API Not OK');
+    }
+  } catch (err) {
+    let localUsers = JSON.parse(localStorage.getItem('sofia_users') || 'null');
+    if (!localUsers || localUsers.length === 0) {
+      localUsers = DEFAULT_USERS;
+      localStorage.setItem('sofia_users', JSON.stringify(localUsers));
+    }
+    usersData = localUsers;
+  }
+  renderUsersTable();
+}
+
+// Render Admin Users Table
+function renderUsersTable() {
+  const tbody = document.getElementById('users-table-body');
+  if (!tbody) return;
+
+  const searchVal = (document.getElementById('search-user-input')?.value || '').toLowerCase();
+
+  const filtered = usersData.filter(u => {
+    return (u.name || '').toLowerCase().includes(searchVal) ||
+           (u.phone || '').toLowerCase().includes(searchVal) ||
+           (u.ic || '').toLowerCase().includes(searchVal) ||
+           (u.id || '').toLowerCase().includes(searchVal);
+  });
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" class="text-center py-6 text-slate-400">Tiada pengguna dijumpai.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(u => {
+    const isAdmin = u.role === 'admin';
+    return `
+      <tr class="hover:bg-slate-50 transition border-b border-slate-100">
+        <td class="p-3">
+          <div class="font-bold text-navy-900">${u.name}</div>
+          <div class="text-xs text-slate-400">ID: ${u.id} ${u.username ? `(${u.username})` : ''}</div>
+        </td>
+        <td class="p-3 text-xs">
+          <div>📞 <strong>${u.phone}</strong></div>
+          <div class="text-slate-500">🪪 IC: ${u.ic || '-'}</div>
+        </td>
+        <td class="p-3 text-xs text-slate-600">
+          ${u.address || '-'}
+        </td>
+        <td class="p-3">
+          <span class="px-2.5 py-1 rounded-full text-xs font-bold ${isAdmin ? 'bg-purple-100 text-purple-800 border border-purple-300' : 'bg-blue-100 text-blue-800 border border-blue-300'}">${u.role.toUpperCase()}</span>
+        </td>
+        <td class="p-3 text-center">
+          <div class="flex items-center justify-center gap-2">
+            <button onclick="openAdminResetPasswordModal('${u.id}')" title="Reset Kata Laluan User" class="px-2.5 py-1 bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-300 rounded-lg text-xs font-bold flex items-center gap-1">
+              <i data-lucide="key-round" class="w-3.5 h-3.5"></i> Reset Pwd
+            </button>
+            ${!isAdmin ? `
+              <button onclick="deleteUser('${u.id}')" title="Padam Akaun Pengguna" class="p-1.5 bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 rounded-lg">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+              </button>
+            ` : ''}
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
   safeRenderIcons();
 }
 
@@ -462,7 +611,6 @@ async function fetchBookings() {
     bookingsData = localBookings;
   }
     
-  // Ensure strict calculation logic for all bookings (Nights * 350 + Deposit 100)
   bookingsData.forEach(b => {
     b.ratePerNight = 350;
     b.accommodationTotal = b.nights * 350;
@@ -712,7 +860,7 @@ function calculateBookingPrice() {
   const rate = 350;
   const deposit = 100;
   const accommodationTotal = nights * rate;
-  const grandTotal = accommodationTotal + deposit; // Nights * 350 + Deposit 100
+  const grandTotal = accommodationTotal + deposit;
 
   const elNights = document.getElementById('calc-nights');
   const elAcc = document.getElementById('calc-accommodation');
@@ -815,7 +963,6 @@ async function handleBookingSubmit(e) {
     console.log('API unavailable, falling back to LocalStorage Booking submission...');
   }
 
-  // LocalStorage Booking Fallback for Static Host
   const randomNum = Math.floor(1000 + Math.random() * 9000);
   const newBookingId = `SRH${randomNum}`;
   const seqNo = String(bookingsData.length + 1).padStart(4, '0');
@@ -891,7 +1038,7 @@ function openPaymentModal(bookingId, paymentMethod = 'Online Transfer') {
     if (booking && booking.paidAmount > 0) {
       proofAmountInput.value = booking.paidAmount;
     } else if (booking) {
-      proofAmountInput.value = '100.00'; // Default deposit RM 100
+      proofAmountInput.value = '100.00';
     }
   }
 
@@ -964,7 +1111,6 @@ async function handleUploadProofSubmit(e) {
     console.log('API unavailable, handling upload in LocalStorage...');
   }
 
-  // LocalStorage Proof Upload & Recalculation Fallback
   const booking = bookingsData.find(b => b.id === bookingId);
   if (booking) {
     booking.proofImage = 'https://ui-avatars.com/api/?name=Resit+Bayaran&background=10b981&color=fff';
@@ -1422,7 +1568,7 @@ function renderOfficialDocHTML(docTitle, b) {
 
   const accommodationTotal = b.nights * 350;
   const depositAmount = 100;
-  const grandTotal = accommodationTotal + depositAmount; // Nights * 350 + Deposit 100
+  const grandTotal = accommodationTotal + depositAmount;
 
   const paidAmount = b.paidAmount !== undefined && b.paidAmount !== null 
     ? parseFloat(b.paidAmount) 
