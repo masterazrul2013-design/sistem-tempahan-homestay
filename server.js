@@ -176,8 +176,8 @@ app.post('/api/bookings', (req, res) => {
 
   const ratePerNight = 350;
   const securityDeposit = 100;
-  const totalPayment = nights * ratePerNight;
-  const balancePayment = totalPayment - securityDeposit;
+  const accommodationTotal = nights * ratePerNight;
+  const grandTotal = accommodationTotal + securityDeposit;
 
   const randomNum = Math.floor(1000 + Math.random() * 9000);
   const newBookingId = `SRH${randomNum}`;
@@ -185,6 +185,9 @@ app.post('/api/bookings', (req, res) => {
 
   const selectedPaymentMethod = paymentMethod || 'QR DuitNow';
   const isCash = selectedPaymentMethod === 'Tunai';
+
+  const userPaid = req.body.paidAmount ? parseFloat(req.body.paidAmount) : (isCash ? grandTotal : 0);
+  const balancePayment = Math.max(0, grandTotal - userPaid);
 
   const newBooking = {
     id: newBookingId,
@@ -204,13 +207,16 @@ app.post('/api/bookings', (req, res) => {
     purpose: purpose || 'Penginapan Homestay',
     nights,
     ratePerNight,
-    totalPayment,
+    accommodationTotal,
     securityDeposit,
+    grandTotal,
+    paidAmount: userPaid,
+    totalPayment: grandTotal,
     balancePayment,
     paymentMethod: selectedPaymentMethod,
     status: isCash ? 'DISAHKAN' : 'MENUNGGU PENGESAHAN',
-    depositReceived: isCash,
-    fullPaymentReceived: false,
+    depositReceived: isCash || userPaid >= 100,
+    fullPaymentReceived: isCash || balancePayment <= 0,
     paymentDate: new Date().toISOString().split('T')[0],
     receivedBy: 'Pengurusan SofiaRizqi',
     proofImage: '',
@@ -257,10 +263,23 @@ app.post('/api/bookings/:id/upload-proof', upload.single('proofImage'), (req, re
   if (!booking) return res.status(404).json({ success: false, message: 'Tempahan tidak dijumpai!' });
 
   booking.proofImage = `/uploads/${req.file.filename}`;
+  if (req.body.paidAmount) {
+    booking.paidAmount = parseFloat(req.body.paidAmount);
+  }
+  booking.accommodationTotal = booking.nights * 350;
+  booking.securityDeposit = 100;
+  booking.grandTotal = booking.accommodationTotal + 100;
+  if (booking.paidAmount === undefined || booking.paidAmount === null) {
+    booking.paidAmount = 100;
+  }
+  booking.balancePayment = Math.max(0, booking.grandTotal - booking.paidAmount);
+  booking.depositReceived = booking.paidAmount >= 100;
+  booking.fullPaymentReceived = booking.balancePayment <= 0;
   booking.status = 'MENUNGGU PENGESAHAN';
+
   writeJSON(BOOKINGS_FILE, bookings);
 
-  res.json({ success: true, proofImage: booking.proofImage, message: 'Bukti pembayaran berjaya dimuat naik!' });
+  res.json({ success: true, proofImage: booking.proofImage, booking, message: 'Bukti pembayaran berjaya dimuat naik!' });
 });
 
 // Fallback route to serve index.html

@@ -38,13 +38,15 @@ const DEFAULT_BOOKINGS = [
     purpose: 'vv',
     nights: 1,
     ratePerNight: 350,
-    totalPayment: 350,
+    accommodationTotal: 350,
     securityDeposit: 100,
-    balancePayment: 250,
+    grandTotal: 450,
+    paidAmount: 450,
+    balancePayment: 0,
     paymentMethod: 'Tunai',
     status: 'DISAHKAN',
     depositReceived: true,
-    fullPaymentReceived: false,
+    fullPaymentReceived: true,
     paymentDate: '2026-08-25',
     receivedBy: 'Pengurusan SofiaRizqi',
     proofImage: '',
@@ -68,9 +70,11 @@ const DEFAULT_BOOKINGS = [
     purpose: 'dd',
     nights: 1,
     ratePerNight: 350,
-    totalPayment: 350,
+    accommodationTotal: 350,
     securityDeposit: 100,
-    balancePayment: 250,
+    grandTotal: 450,
+    paidAmount: 100,
+    balancePayment: 350,
     paymentMethod: 'Tunai',
     status: 'DISAHKAN',
     depositReceived: true,
@@ -98,9 +102,11 @@ const DEFAULT_BOOKINGS = [
     purpose: 'dd',
     nights: 1,
     ratePerNight: 350,
-    totalPayment: 350,
+    accommodationTotal: 350,
     securityDeposit: 100,
-    balancePayment: 250,
+    grandTotal: 450,
+    paidAmount: 100,
+    balancePayment: 350,
     paymentMethod: 'Tunai',
     status: 'DISAHKAN',
     depositReceived: true,
@@ -129,12 +135,10 @@ function isBookingOwnedByUser(booking, user) {
   const bookUserId = (booking.userId || '').trim();
   const bookPhone = (booking.guestPhone || '').replace(/\D/g, '');
 
-  // 1. Strict Match on User ID (non-empty & not USR-GUEST)
   if (curUserId !== '' && bookUserId !== '' && bookUserId !== 'USR-GUEST' && curUserId === bookUserId) {
     return true;
   }
 
-  // 2. Strict Match on Cleaned Phone Number (at least 6 digits)
   if (curPhone.length >= 6 && bookPhone.length >= 6 && curPhone === bookPhone) {
     return true;
   }
@@ -177,7 +181,7 @@ function checkAuthSession() {
     if (currentUser.role === 'admin') {
       switchTab('penyewa-list');
     } else {
-      switchTab('dashboard'); // Penyewa sees Calendar FIRST
+      switchTab('dashboard');
     }
   } else {
     updateUIForAuth();
@@ -196,7 +200,7 @@ function updateUIForAuth() {
   if (currentUser) {
     if (userInfoBar) userInfoBar.classList.remove('hidden');
     if (authButtons) authButtons.classList.add('hidden');
-    if (tabLoginMenu) tabLoginMenu.classList.add('hidden'); // Hide Menu Log Masuk tab when logged in
+    if (tabLoginMenu) tabLoginMenu.classList.add('hidden');
 
     const nameEl = document.getElementById('current-user-name');
     const roleEl = document.getElementById('current-user-role');
@@ -206,22 +210,21 @@ function updateUIForAuth() {
     if (currentUser.role === 'admin') {
       if (tabPenyewaList) tabPenyewaList.classList.remove('hidden');
       if (tabMyBookings) tabMyBookings.classList.add('hidden');
-      if (statsOverview) statsOverview.classList.remove('hidden'); // SHOW stats ONLY for Admin
+      if (statsOverview) statsOverview.classList.remove('hidden');
     } else {
       if (tabPenyewaList) tabPenyewaList.classList.add('hidden');
       if (tabMyBookings) tabMyBookings.classList.remove('hidden');
-      if (statsOverview) statsOverview.classList.add('hidden'); // HIDE stats for Penyewa
+      if (statsOverview) statsOverview.classList.add('hidden');
     }
   } else {
     if (userInfoBar) userInfoBar.classList.add('hidden');
     if (authButtons) authButtons.classList.remove('hidden');
-    if (tabLoginMenu) tabLoginMenu.classList.remove('hidden'); // Show Menu Log Masuk tab when logged out
+    if (tabLoginMenu) tabLoginMenu.classList.remove('hidden');
     if (tabPenyewaList) tabPenyewaList.classList.add('hidden');
     if (tabMyBookings) tabMyBookings.classList.add('hidden');
-    if (statsOverview) statsOverview.classList.add('hidden'); // HIDE stats when not logged in
+    if (statsOverview) statsOverview.classList.add('hidden');
   }
 
-  // Refresh calendar and bookings lists for the current logged-in user state
   updateCalendarEvents();
   renderMyBookings();
   safeRenderIcons();
@@ -351,7 +354,6 @@ async function handleSingleRegisterSubmit(e) {
     console.log('API unavailable, falling back to LocalStorage Register...');
   }
 
-  // LocalStorage Register Fallback for Static Host
   let localUsers = JSON.parse(localStorage.getItem('sofia_users') || 'null');
   if (!localUsers) localUsers = DEFAULT_USERS;
 
@@ -420,7 +422,7 @@ function switchTab(tabId) {
       btnDash.classList.add('bg-navy-900', 'text-gold-500', 'shadow', 'font-bold');
       btnDash.classList.remove('text-slate-600', 'hover:bg-slate-100', 'font-medium');
     }
-    updateCalendarEvents(); // Ensure fresh events state on switching to calendar
+    updateCalendarEvents();
     if (calendar) setTimeout(() => calendar.render(), 100);
   } else if (tabId === 'penyewa-list') {
     if (viewPenyewa) viewPenyewa.classList.remove('hidden');
@@ -460,12 +462,16 @@ async function fetchBookings() {
     bookingsData = localBookings;
   }
     
-  // Ensure strict calculation logic for all bookings
+  // Ensure strict calculation logic for all bookings (Nights * 350 + Deposit 100)
   bookingsData.forEach(b => {
     b.ratePerNight = 350;
-    b.totalPayment = b.nights * 350;
+    b.accommodationTotal = b.nights * 350;
     b.securityDeposit = 100;
-    b.balancePayment = b.totalPayment - 100;
+    b.grandTotal = b.accommodationTotal + 100;
+    if (b.paidAmount === undefined || b.paidAmount === null) {
+      b.paidAmount = b.depositReceived ? (b.fullPaymentReceived ? b.grandTotal : 100) : 0;
+    }
+    b.balancePayment = Math.max(0, b.grandTotal - b.paidAmount);
   });
 
   updateStatsOverview();
@@ -478,7 +484,7 @@ function updateStatsOverview() {
   const total = bookingsData.length;
   const confirmed = bookingsData.filter(b => b.status === 'DISAHKAN').length;
   const pending = bookingsData.filter(b => b.status === 'MENUNGGU PENGESAHAN').length;
-  const revenue = bookingsData.reduce((acc, b) => b.status === 'DISAHKAN' ? acc + (b.totalPayment || 0) : acc, 0);
+  const revenue = bookingsData.reduce((acc, b) => b.status === 'DISAHKAN' ? acc + (b.paidAmount || b.grandTotal || 0) : acc, 0);
 
   const elTotal = document.getElementById('stat-total');
   const elConfirmed = document.getElementById('stat-confirmed');
@@ -491,7 +497,7 @@ function updateStatsOverview() {
   if (elRevenue) elRevenue.innerText = `RM ${revenue.toLocaleString()}`;
 }
 
-// FullCalendar Setup (Displays "🏠 Tempahan Saya" ONLY for current user's bookings, and "🔴 Telah Ditempah" for others)
+// FullCalendar Setup
 function initCalendar() {
   const calendarEl = document.getElementById('calendar-el');
   if (!calendarEl || typeof FullCalendar === 'undefined') return;
@@ -544,7 +550,6 @@ function updateCalendarEvents() {
     const isConfirmed = b.status === 'DISAHKAN';
     const isMyBooking = isBookingOwnedByUser(b, currentUser);
 
-    // Add end date + 1 for fullcalendar inclusive visual end date
     const endDate = new Date(b.checkOutDate);
     endDate.setDate(endDate.getDate() + 1);
 
@@ -573,7 +578,6 @@ function handleDateSelect(startStr, endStr) {
   const actualCheckOut = endStr;
   const isAdmin = currentUser && currentUser.role === 'admin';
 
-  // Strict inclusive conflict check against existing bookings
   const conflict = bookingsData.find(b => {
     if (b.status === 'BATAL' || b.status === 'DITOLAK') return false;
     const s1 = new Date(actualCheckIn);
@@ -603,7 +607,6 @@ function handleNewBookingClick(startDate = '', endDate = '') {
 }
 
 function openBookingModal(startDate = '', endDate = '') {
-  // Always clear previous booking form inputs to prevent stale date conflict triggers
   const elCheckin = document.getElementById('book-checkin');
   const elCheckout = document.getElementById('book-checkout');
   const elGuests = document.getElementById('book-guests');
@@ -649,6 +652,7 @@ function updatePaymentNotice() {
   }
 }
 
+// Calculate Booking Price: Accommodation (Nights * 350) + Deposit 100 = JUMLAH KESELURAHAN
 function calculateBookingPrice() {
   const checkinVal = document.getElementById('book-checkin')?.value;
   const checkoutVal = document.getElementById('book-checkout')?.value;
@@ -657,11 +661,11 @@ function calculateBookingPrice() {
 
   if (!checkinVal || !checkoutVal) {
     const elNights = document.getElementById('calc-nights');
-    const elTotal = document.getElementById('calc-total');
-    const elBalance = document.getElementById('calc-balance');
+    const elAcc = document.getElementById('calc-accommodation');
+    const elGrandTotal = document.getElementById('calc-total-grand');
     if (elNights) elNights.innerText = '0';
-    if (elTotal) elTotal.innerText = 'RM 0.00';
-    if (elBalance) elBalance.innerText = 'RM 0.00';
+    if (elAcc) elAcc.innerText = 'RM 0.00';
+    if (elGrandTotal) elGrandTotal.innerText = 'RM 0.00';
     if (submitBtn) {
       submitBtn.disabled = false;
       submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
@@ -678,7 +682,6 @@ function calculateBookingPrice() {
     return;
   }
 
-  // Strict inclusive conflict check against existing non-cancelled bookings
   const conflict = bookingsData.find(b => {
     if (b.status === 'BATAL' || b.status === 'DITOLAK') return false;
     const s1 = dIn;
@@ -708,16 +711,16 @@ function calculateBookingPrice() {
   const nights = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   const rate = 350;
   const deposit = 100;
-  const total = nights * rate;
-  const balance = total - deposit;
+  const accommodationTotal = nights * rate;
+  const grandTotal = accommodationTotal + deposit; // Nights * 350 + Deposit 100
 
   const elNights = document.getElementById('calc-nights');
-  const elTotal = document.getElementById('calc-total');
-  const elBalance = document.getElementById('calc-balance');
+  const elAcc = document.getElementById('calc-accommodation');
+  const elGrandTotal = document.getElementById('calc-total-grand');
 
   if (elNights) elNights.innerText = nights;
-  if (elTotal) elTotal.innerText = `RM ${total.toFixed(2)}`;
-  if (elBalance) elBalance.innerText = `RM ${balance.toFixed(2)}`;
+  if (elAcc) elAcc.innerText = `RM ${accommodationTotal.toFixed(2)}`;
+  if (elGrandTotal) elGrandTotal.innerText = `RM ${grandTotal.toFixed(2)}`;
 }
 
 async function handleBookingSubmit(e) {
@@ -732,7 +735,6 @@ async function handleBookingSubmit(e) {
   const purpose = document.getElementById('book-purpose').value.trim();
   const isAdmin = currentUser && currentUser.role === 'admin';
 
-  // Strict numeric validation for guest count
   const guestCountNum = parseInt(guestCountRaw, 10);
   if (!guestCountRaw || isNaN(guestCountNum) || guestCountNum <= 0) {
     alert('Sila masukkan nombor sahaja (Cth: 4) untuk Bilangan Tetamu!');
@@ -747,7 +749,6 @@ async function handleBookingSubmit(e) {
     return;
   }
 
-  // Pre-check for date conflict before calling API
   const dIn = new Date(checkInDate);
   const dOut = new Date(checkOutDate);
   const conflict = bookingsData.find(b => {
@@ -765,6 +766,11 @@ async function handleBookingSubmit(e) {
     return;
   }
 
+  const nights = Math.ceil(Math.abs(dOut - dIn) / (1000 * 60 * 60 * 24)) || 1;
+  const accommodationTotal = nights * 350;
+  const securityDeposit = 100;
+  const grandTotal = accommodationTotal + securityDeposit;
+
   try {
     const res = await fetch(`${API_BASE}/api/bookings`, {
       method: 'POST',
@@ -779,7 +785,12 @@ async function handleBookingSubmit(e) {
         guestCount: String(guestCountNum),
         vehicleNumbers,
         purpose,
-        paymentMethod: selectedPaymentMethod
+        paymentMethod: selectedPaymentMethod,
+        nights,
+        accommodationTotal,
+        securityDeposit,
+        grandTotal,
+        paidAmount: selectedPaymentMethod === 'Tunai' ? grandTotal : 0
       })
     });
 
@@ -795,7 +806,7 @@ async function handleBookingSubmit(e) {
         } else {
           activePendingUploadBookingId = data.booking.id;
           openPaymentModal(data.booking.id, selectedPaymentMethod);
-          alert('⚠️ Tempahan anda berjaya didaftarkan! Sila muat naik bukti pembayaran anda sekarang untuk melengkapkan tempahan.');
+          alert('⚠️ Tempahan anda berjaya didaftarkan! Sila masukkan jumlah bayaran yang di-transfer dan muat naik resit.');
         }
         return;
       }
@@ -808,7 +819,7 @@ async function handleBookingSubmit(e) {
   const randomNum = Math.floor(1000 + Math.random() * 9000);
   const newBookingId = `SRH${randomNum}`;
   const seqNo = String(bookingsData.length + 1).padStart(4, '0');
-  const nights = Math.ceil(Math.abs(dOut - dIn) / (1000 * 60 * 60 * 24)) || 1;
+  const isCash = selectedPaymentMethod === 'Tunai';
 
   const newBooking = {
     id: newBookingId,
@@ -828,13 +839,15 @@ async function handleBookingSubmit(e) {
     purpose: purpose || 'Penginapan Homestay',
     nights,
     ratePerNight: 350,
-    totalPayment: nights * 350,
+    accommodationTotal,
     securityDeposit: 100,
-    balancePayment: (nights * 350) - 100,
+    grandTotal,
+    paidAmount: isCash ? grandTotal : 0,
+    balancePayment: isCash ? 0 : grandTotal,
     paymentMethod: selectedPaymentMethod,
-    status: selectedPaymentMethod === 'Tunai' ? 'DISAHKAN' : 'MENUNGGU PENGESAHAN',
-    depositReceived: selectedPaymentMethod === 'Tunai',
-    fullPaymentReceived: false,
+    status: isCash ? 'DISAHKAN' : 'MENUNGGU PENGESAHAN',
+    depositReceived: isCash,
+    fullPaymentReceived: isCash,
     paymentDate: new Date().toISOString().split('T')[0],
     receivedBy: 'Pengurusan SofiaRizqi',
     proofImage: '',
@@ -856,7 +869,7 @@ async function handleBookingSubmit(e) {
   } else {
     activePendingUploadBookingId = newBooking.id;
     openPaymentModal(newBooking.id, selectedPaymentMethod);
-    alert('⚠️ Tempahan anda berjaya didaftarkan! Sila muat naik bukti pembayaran anda sekarang untuk melengkapkan tempahan.');
+    alert('⚠️ Tempahan anda berjaya didaftarkan! Sila masukkan jumlah bayaran yang di-transfer dan muat naik resit.');
   }
 }
 
@@ -869,8 +882,18 @@ function openPaymentModal(bookingId, paymentMethod = 'Online Transfer') {
   const secBank = document.getElementById('payment-sec-bank');
   const bankRefId = document.getElementById('bank-ref-id');
   const titleEl = document.getElementById('payment-modal-title');
+  const proofAmountInput = document.getElementById('proof-amount-paid');
 
   if (bankRefId) bankRefId.innerText = bookingId;
+
+  const booking = bookingsData.find(b => b.id === bookingId);
+  if (proofAmountInput) {
+    if (booking && booking.paidAmount > 0) {
+      proofAmountInput.value = booking.paidAmount;
+    } else if (booking) {
+      proofAmountInput.value = '100.00'; // Default deposit RM 100
+    }
+  }
 
   if (paymentMethod === 'Online Transfer') {
     if (secQr) secQr.classList.add('hidden');
@@ -904,6 +927,13 @@ async function handleUploadProofSubmit(e) {
   e.preventDefault();
   const bookingId = document.getElementById('upload-booking-id').value;
   const fileInput = document.getElementById('proof-file');
+  const paidAmountRaw = document.getElementById('proof-amount-paid')?.value.trim();
+
+  const userPaidAmount = parseFloat(paidAmountRaw);
+  if (isNaN(userPaidAmount) || userPaidAmount <= 0) {
+    alert('Sila masukkan jumlah bayaran yang sah (RM) yang telah anda transfer!');
+    return;
+  }
 
   if (!fileInput.files || fileInput.files.length === 0) {
     alert('Sila pilih fail bukti bayaran.');
@@ -912,6 +942,7 @@ async function handleUploadProofSubmit(e) {
 
   const formData = new FormData();
   formData.append('proofImage', fileInput.files[0]);
+  formData.append('paidAmount', userPaidAmount);
 
   try {
     const res = await fetch(`${API_BASE}/api/bookings/${bookingId}/upload-proof`, {
@@ -923,7 +954,7 @@ async function handleUploadProofSubmit(e) {
       if (data.success) {
         activePendingUploadBookingId = null;
         closeModal('modal-payment');
-        alert('🎉 Bukti pembayaran berjaya dimuat naik! Tempahan anda kini dipaparkan di senarai tempahan.');
+        alert('🎉 Bukti pembayaran berjaya dimuat naik! Perkiraan resit telah dikemaskini.');
         await fetchBookings();
         switchTab('my-bookings');
         return;
@@ -933,16 +964,23 @@ async function handleUploadProofSubmit(e) {
     console.log('API unavailable, handling upload in LocalStorage...');
   }
 
-  // LocalStorage Proof Upload Fallback for static host
+  // LocalStorage Proof Upload & Recalculation Fallback
   const booking = bookingsData.find(b => b.id === bookingId);
   if (booking) {
     booking.proofImage = 'https://ui-avatars.com/api/?name=Resit+Bayaran&background=10b981&color=fff';
+    booking.paidAmount = userPaidAmount;
+    booking.accommodationTotal = booking.nights * 350;
+    booking.securityDeposit = 100;
+    booking.grandTotal = booking.accommodationTotal + 100;
+    booking.balancePayment = Math.max(0, booking.grandTotal - userPaidAmount);
+    booking.depositReceived = userPaidAmount >= 100;
+    booking.fullPaymentReceived = booking.balancePayment <= 0;
     localStorage.setItem('sofia_bookings', JSON.stringify(bookingsData));
   }
   activePendingUploadBookingId = null;
   closeModal('modal-payment');
-  alert('🎉 Bukti pembayaran berjaya dimuat naik! Tempahan anda kini dipaparkan di senarai tempahan.');
-  renderMyBookings();
+  alert('🎉 Bukti pembayaran & jumlah bayaran (RM ' + userPaidAmount.toFixed(2) + ') berjaya dikemaskini!');
+  fetchBookings();
   switchTab('my-bookings');
 }
 
@@ -972,10 +1010,11 @@ function renderBookingsTable() {
     if (b.status === 'DISAHKAN') statusClass = 'bg-emerald-100 text-emerald-800 border-emerald-300';
     if (b.status === 'BATAL') statusClass = 'bg-red-100 text-red-800 border-red-300';
 
-    const totalPay = b.nights * 350;
-    const balancePay = totalPay - 100;
+    const accTotal = b.nights * 350;
+    const grandTotal = accTotal + 100;
+    const paid = b.paidAmount !== undefined ? b.paidAmount : (b.depositReceived ? 100 : 0);
+    const balance = Math.max(0, grandTotal - paid);
 
-    // Show receipt button only if proof image exists OR status is confirmed OR method is cash
     const showReceiptBtn = b.proofImage || b.status === 'DISAHKAN' || b.paymentMethod === 'Tunai';
 
     return `
@@ -999,9 +1038,9 @@ function renderBookingsTable() {
           <div class="text-slate-500">🚗 ${b.vehicleNumbers || '-'}</div>
         </td>
         <td class="p-3 text-xs">
-          <div>Jumlah: <strong>RM ${totalPay}</strong></div>
-          <div class="text-emerald-600">Deposit: RM 100</div>
-          <div class="text-navy-900 font-semibold">Baki: RM ${balancePay}</div>
+          <div>Jumlah: <strong>RM ${grandTotal.toFixed(2)}</strong></div>
+          <div class="text-emerald-600">Dibayar: RM ${paid.toFixed(2)}</div>
+          <div class="text-navy-900 font-semibold">Baki: RM ${balance.toFixed(2)}</div>
         </td>
         <td class="p-3">
           <span class="px-2.5 py-1 rounded-full text-xs font-bold border ${statusClass}">${b.status}</span>
@@ -1036,7 +1075,7 @@ function renderBookingsTable() {
   safeRenderIcons();
 }
 
-// Render Penyewa My Bookings List (NO delete button on completed bookings)
+// Render Penyewa My Bookings List
 function renderMyBookings() {
   const container = document.getElementById('my-bookings-container');
   if (!container) return;
@@ -1046,13 +1085,9 @@ function renderMyBookings() {
     return;
   }
 
-  // Filter user bookings strictly using helper
   const userBookings = bookingsData.filter(b => isBookingOwnedByUser(b, currentUser));
 
-  // Separate valid/visible bookings (has proof OR is Cash OR is confirmed)
   const validBookings = userBookings.filter(b => b.proofImage || b.paymentMethod === 'Tunai' || b.status === 'DISAHKAN');
-
-  // Pending upload bookings (QR/Online Transfer without proof)
   const pendingUploadBookings = userBookings.filter(b => !b.proofImage && b.paymentMethod !== 'Tunai' && b.status !== 'DISAHKAN');
 
   if (validBookings.length === 0 && pendingUploadBookings.length === 0) {
@@ -1071,7 +1106,6 @@ function renderMyBookings() {
 
   let html = '';
 
-  // Render Pending Upload Section with BOTH Upload and Delete buttons
   if (pendingUploadBookings.length > 0) {
     html += `
       <div class="col-span-2 bg-red-50 border-2 border-red-300 p-4 rounded-2xl space-y-3 text-red-900">
@@ -1080,7 +1114,7 @@ function renderMyBookings() {
             <i data-lucide="alert-triangle" class="w-5 h-5 text-red-600 shrink-0"></i>
             <span>Tempahan Belum Selesai (Memerlukan Bukti Bayaran):</span>
           </div>
-          <span class="text-[11px] text-red-600 font-semibold">Boleh muat naik resit atau padam untuk kosongkan tarikh</span>
+          <span class="text-[11px] text-red-600 font-semibold">Masukkan jumlah transfer & muat naik resit</span>
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1091,7 +1125,7 @@ function renderMyBookings() {
                 <span class="bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded text-[10px]">Belum Naik Resit</span>
               </div>
               <p>📅 <strong>Tarikh:</strong> ${formatMalayDate(b.checkInDate)} - ${formatMalayDate(b.checkOutDate)}</p>
-              <p>💰 <strong>Jumlah:</strong> RM ${b.nights * 350}</p>
+              <p>💰 <strong>Jumlah Perlu Dijelaskan:</strong> RM ${( (b.nights * 350) + 100 ).toFixed(2)}</p>
               <div class="flex gap-2 pt-1">
                 <button onclick="openPaymentModal('${b.id}', '${b.paymentMethod}')" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-lg text-xs flex items-center justify-center gap-1 shadow">
                   <i data-lucide="upload" class="w-3.5 h-3.5"></i> Muat Naik Resit
@@ -1107,15 +1141,16 @@ function renderMyBookings() {
     `;
   }
 
-  // Render valid/submitted bookings WITHOUT delete button for Penyewa
   html += validBookings.map(b => {
     let statusBadge = `<span class="bg-amber-100 text-amber-800 px-2.5 py-1 rounded-full text-xs font-bold">⏳ Menunggu Pengesahan</span>`;
     if (b.status === 'DISAHKAN') {
       statusBadge = `<span class="bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full text-xs font-bold">🎉 DISAHKAN</span>`;
     }
 
-    const totalPay = b.nights * 350;
-    const balancePay = totalPay - 100;
+    const accTotal = b.nights * 350;
+    const grandTotal = accTotal + 100;
+    const paid = b.paidAmount !== undefined ? b.paidAmount : (b.depositReceived ? 100 : 0);
+    const balance = Math.max(0, grandTotal - paid);
 
     return `
       <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3 relative hover-card">
@@ -1131,7 +1166,7 @@ function renderMyBookings() {
           <p>📅 <strong>Check-in:</strong> ${formatMalayDate(b.checkInDate)} (2 PM)</p>
           <p>📅 <strong>Check-out:</strong> ${formatMalayDate(b.checkOutDate)} (12 PM)</p>
           <p>👨👩👧👦 <strong>Tetamu:</strong> ${b.guestCount}</p>
-          <p>💰 <strong>Jumlah:</strong> RM ${totalPay} | Deposit: RM 100 | <strong>Baki: RM ${balancePay}</strong></p>
+          <p>💰 <strong>Jumlah Keseluruhan:</strong> RM ${grandTotal.toFixed(2)} | Dibayar: RM ${paid.toFixed(2)} | <strong>Baki: RM ${balance.toFixed(2)}</strong></p>
         </div>
 
         <div class="flex items-center justify-between pt-2 border-t border-slate-100">
@@ -1157,10 +1192,12 @@ function viewProofModal(bookingId) {
   const booking = bookingsData.find(b => b.id === bookingId);
   if (!booking) return;
 
-  const totalPay = booking.nights * 350;
+  const accTotal = booking.nights * 350;
+  const grandTotal = accTotal + 100;
+  const paid = booking.paidAmount !== undefined ? booking.paidAmount : (booking.depositReceived ? 100 : 0);
 
   document.getElementById('pv-guest-name').innerText = booking.guestName;
-  document.getElementById('pv-amount').innerText = totalPay;
+  document.getElementById('pv-amount').innerText = `${paid.toFixed(2)} (Jumlah Keseluruhan: RM ${grandTotal.toFixed(2)})`;
   document.getElementById('pv-phone').innerText = booking.guestPhone;
 
   const imgContainer = document.getElementById('proof-image-container');
@@ -1201,7 +1238,6 @@ async function approveBookingStatus(newStatus) {
     console.log('API unavailable, updating status in LocalStorage...');
   }
 
-  // LocalStorage Fallback for status approval
   const booking = bookingsData.find(b => b.id === activeProofBookingId);
   if (booking) {
     booking.status = newStatus;
@@ -1226,9 +1262,11 @@ function openWhatsAppModal(bookingId) {
   const formattedIn = formatMalayDate(b.checkInDate);
   const formattedOut = formatMalayDate(b.checkOutDate);
 
-  const totalPay = b.nights * 350;
+  const accTotal = b.nights * 350;
   const depositPay = 100;
-  const balancePay = totalPay - depositPay;
+  const grandTotal = accTotal + depositPay;
+  const paid = b.paidAmount !== undefined ? b.paidAmount : (b.depositReceived ? 100 : 0);
+  const balancePay = Math.max(0, grandTotal - paid);
 
   const message = `Assalamualaikum / Salam Sejahtera 😊
 
@@ -1250,21 +1288,15 @@ ${b.guestCount}
 🚗 No. Pendaftaran Kenderaan: 
 ${b.vehicleNumbers || '-'}
 
-💰 Jumlah Bayaran: RM ${totalPay} 
-✅ Deposit Sekuriti Diterima: RM ${depositPay}
-💵 Baki Bayaran: RM ${balancePay}
+💰 Jumlah Keseluruhan Perlu Dijelaskan: RM ${grandTotal.toFixed(2)} 
+✅ Jumlah Telah Dibayar / Di-transfer: RM ${paid.toFixed(2)}
+💵 Baki Bayaran Perlu Dijelaskan: RM ${balancePay.toFixed(2)}
+
+📌 Nota Deposit: Bayaran deposit sekuriti (RM 100.00) akan dipulangkan selepas check-out sekiranya tiada sebarang kerosakan.
 
 📍 Lokasi homestay, panduan check-in dan maklumat pengambilan kunci akan dihantar sehari sebelum tarikh penginapan.
 
-Peraturan Ringkas Homestay
-* Dilarang merokok di dalam rumah.
-* Tidak dibenarkan mengadakan parti atau membuat bising yang mengganggu jiran.
-* Sila jaga kebersihan serta semua kemudahan yang disediakan.
-* Sebarang kerosakan hendaklah dimaklumkan kepada pihak pengurusan.
-
-Jika terdapat sebarang pertanyaan atau perubahan tempahan, sila hubungi kami di [0192298176].
-
-Terima kasih kerana memilih SofiaRizqi Homestay. Kami mengalu-alukan kedatangan anda dan berharap anda mendapat pengalaman penginapan yang selesa. 😊`;
+Terima kasih kerana memilih SofiaRizqi Homestay! 😊`;
 
   document.getElementById('whatsapp-text-content').value = message;
 
@@ -1301,7 +1333,6 @@ async function deleteBooking(bookingId) {
     console.log('API unavailable, deleting booking in LocalStorage...');
   }
 
-  // LocalStorage Fallback Delete
   bookingsData = bookingsData.filter(b => b.id !== bookingId);
   localStorage.setItem('sofia_bookings', JSON.stringify(bookingsData));
   alert(`🎉 Tempahan ${bookingId} telah dipadam dan tarikh telah dikosongkan!`);
@@ -1372,10 +1403,8 @@ async function changeReceiptPaymentMethod(newMethod) {
     console.error('Error updating payment method on server:', e);
   }
 
-  // Update in LocalStorage as fallback
   localStorage.setItem('sofia_bookings', JSON.stringify(bookingsData));
 
-  // Live update receipt preview instantly!
   const html = renderOfficialDocHTML(activeReceiptType, booking);
   document.getElementById('print-container').innerHTML = html;
   renderBookingsTable();
@@ -1386,16 +1415,21 @@ function triggerPrintDoc() {
   window.print();
 }
 
-// Full-size Official Document Renderer matching initial format while fitting 100% inside 1 A4 page
+// Full-size Official Document Renderer matching initial format (Nights*350 + Deposit 100 = Grand Total, minus Paid = Balance)
 function renderOfficialDocHTML(docTitle, b) {
   const docNo = docTitle.includes('INVOIS') ? b.invoiceNo : b.receiptNo;
   const dateFormatted = b.paymentDate ? formatShortDate(b.paymentDate) : formatShortDate(new Date());
 
-  const totalAmount = b.nights * 350;
+  const accommodationTotal = b.nights * 350;
   const depositAmount = 100;
-  const balanceAmount = totalAmount - depositAmount;
+  const grandTotal = accommodationTotal + depositAmount; // Nights * 350 + Deposit 100
 
-  // Flexible Case-Insensitive payment method detection
+  const paidAmount = b.paidAmount !== undefined && b.paidAmount !== null 
+    ? parseFloat(b.paidAmount) 
+    : (b.depositReceived ? (b.fullPaymentReceived ? grandTotal : 100) : 0);
+
+  const balanceAmount = Math.max(0, grandTotal - paidAmount);
+
   const rawMethod = (b.paymentMethod || 'Online Transfer').trim();
   const lowerMethod = rawMethod.toLowerCase();
 
@@ -1410,44 +1444,44 @@ function renderOfficialDocHTML(docTitle, b) {
   if (isOther) displayMethodName = rawMethod || 'Lain-lain';
 
   return `
-    <div id="print-area" class="receipt-box text-slate-800 font-sans" style="line-height: 1.5;">
+    <div id="print-area" class="receipt-box text-slate-800 font-sans" style="line-height: 1.45;">
       <!-- HEADER -->
-      <table class="receipt-header-table mb-3">
+      <table class="receipt-header-table mb-2">
         <tr>
-          <td style="width: 100px; vertical-align: middle;">
-            <div style="width: 85px; height: 85px; border-radius: 50%; border: 3px solid #daa520; background: #0f2444; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 3px;">
+          <td style="width: 95px; vertical-align: middle;">
+            <div style="width: 80px; height: 80px; border-radius: 50%; border: 3px solid #daa520; background: #0f2444; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 2px;">
               <span style="font-size: 11px; font-weight: bold; color: #daa520;">SofiaRizqi</span>
               <span style="font-size: 7px; letter-spacing: 1px;">HOMESTAY</span>
               <span style="font-size: 5px; color: #cbd5e1; margin-top: 1px;">SELESA • BERSIH • MESRA</span>
             </div>
           </td>
-          <td style="vertical-align: middle; padding-left: 8px;">
-            <h2 style="font-size: 19px; font-weight: bold; color: #0f2444; margin: 0; font-family: Georgia, serif; text-transform: uppercase;">${docTitle}</h2>
-            <h3 style="font-size: 13px; font-weight: bold; color: #daa520; margin: 1px 0 6px 0; font-family: Georgia, serif;">SOFIA RIZQI HOMESTAY</h3>
-            <div style="font-size: 11px; color: #334155; line-height: 1.4;">
+          <td style="vertical-align: middle; padding-left: 6px;">
+            <h2 style="font-size: 18px; font-weight: bold; color: #0f2444; margin: 0; font-family: Georgia, serif; text-transform: uppercase;">${docTitle}</h2>
+            <h3 style="font-size: 13px; font-weight: bold; color: #daa520; margin: 1px 0 4px 0; font-family: Georgia, serif;">SOFIA RIZQI HOMESTAY</h3>
+            <div style="font-size: 10.5px; color: #334155; line-height: 1.3;">
               📍 No. 14, Jalan Desa Seroja 3, Taman Desa Seroja, 09100 Baling, Kedah.<br>
               📞 019-229 8176
             </div>
           </td>
           <td style="width: 170px; vertical-align: top;">
-            <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 10.5px;">
               <tr>
-                <td class="receipt-navy-bar" style="text-align: center; padding: 3px 6px;">${docTitle.includes('INVOIS') ? 'NO. INVOIS' : 'NO. RESIT'}</td>
+                <td class="receipt-navy-bar" style="text-align: center; padding: 2px 6px;">${docTitle.includes('INVOIS') ? 'NO. INVOIS' : 'NO. RESIT'}</td>
               </tr>
               <tr>
-                <td style="border: 1px solid #0f2444; text-align: center; padding: 3px; font-weight: bold; background: #f8fafc;">${docNo}</td>
+                <td style="border: 1px solid #0f2444; text-align: center; padding: 2px; font-weight: bold; background: #f8fafc;">${docNo}</td>
               </tr>
               <tr>
-                <td class="receipt-navy-bar" style="text-align: center; padding: 3px 6px; margin-top: 3px;">TARIKH</td>
+                <td class="receipt-navy-bar" style="text-align: center; padding: 2px 6px; margin-top: 2px;">TARIKH</td>
               </tr>
               <tr>
-                <td style="border: 1px solid #0f2444; text-align: center; padding: 3px; background: #f8fafc;">${dateFormatted}</td>
+                <td style="border: 1px solid #0f2444; text-align: center; padding: 2px; background: #f8fafc;">${dateFormatted}</td>
               </tr>
               <tr>
-                <td class="receipt-navy-bar" style="text-align: center; padding: 3px 6px; margin-top: 3px;">KAEDAH PEMBAYARAN</td>
+                <td class="receipt-navy-bar" style="text-align: center; padding: 2px 6px; margin-top: 2px;">KAEDAH PEMBAYARAN</td>
               </tr>
               <tr>
-                <td style="border: 1px solid #0f2444; text-align: center; padding: 3px; background: #f8fafc; font-weight: bold; color: #0f2444;">${displayMethodName}</td>
+                <td style="border: 1px solid #0f2444; text-align: center; padding: 2px; background: #f8fafc; font-weight: bold; color: #0f2444;">${displayMethodName}</td>
               </tr>
             </table>
           </td>
@@ -1455,19 +1489,19 @@ function renderOfficialDocHTML(docTitle, b) {
       </table>
 
       <!-- MAKLUMAT PELANGGAN & TEMPAHAN -->
-      <table style="width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 11px;">
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 10.5px;">
         <tr>
-          <td style="width: 50%; vertical-align: top; padding-right: 6px;">
-            <div class="receipt-navy-bar mb-1" style="padding: 3px 8px;">MAKLUMAT PELANGGAN</div>
-            <table style="width: 100%; border-collapse: collapse; line-height: 1.6;">
+          <td style="width: 50%; vertical-align: top; padding-right: 5px;">
+            <div class="receipt-navy-bar mb-1" style="padding: 2px 6px;">MAKLUMAT PELANGGAN</div>
+            <table style="width: 100%; border-collapse: collapse; line-height: 1.5;">
               <tr><td style="width: 80px; font-weight: bold;">Nama</td><td>: ${b.guestName}</td></tr>
               <tr><td style="font-weight: bold;">No. Telefon</td><td>: ${b.guestPhone}</td></tr>
               <tr><td style="font-weight: bold; vertical-align: top;">Alamat</td><td>: ${b.guestAddress || '-'}</td></tr>
             </table>
           </td>
-          <td style="width: 50%; vertical-align: top; padding-left: 6px;">
-            <div class="receipt-navy-bar mb-1" style="padding: 3px 8px;">MAKLUMAT TEMPAHAN</div>
-            <table style="width: 100%; border-collapse: collapse; line-height: 1.6;">
+          <td style="width: 50%; vertical-align: top; padding-left: 5px;">
+            <div class="receipt-navy-bar mb-1" style="padding: 2px 6px;">MAKLUMAT TEMPAHAN</div>
+            <table style="width: 100%; border-collapse: collapse; line-height: 1.5;">
               <tr><td style="width: 105px; font-weight: bold;">Tarikh Check-in</td><td>: ${formatMalayDate(b.checkInDate)}</td></tr>
               <tr><td style="font-weight: bold;">Tarikh Check-out</td><td>: ${formatMalayDate(b.checkOutDate)}</td></tr>
               <tr><td style="font-weight: bold;">Bilangan Tetamu</td><td>: ${b.guestCount}</td></tr>
@@ -1477,52 +1511,61 @@ function renderOfficialDocHTML(docTitle, b) {
         </tr>
       </table>
 
-      <!-- TABLE PERINCIAN -->
-      <table class="receipt-table mb-3" style="font-size: 11px;">
+      <!-- TABLE PERINCIAN (HAK KADAR + DEPOSIT = JUMLAH KESELURAHAN, MINUS PAID = BAKI) -->
+      <table class="receipt-table mb-2" style="font-size: 10.5px;">
         <thead>
           <tr>
-            <th style="width: 70%; padding: 5px 8px;">PERINCIAN</th>
-            <th style="width: 30%; padding: 5px 8px;">JUMLAH (RM)</th>
+            <th style="width: 70%; padding: 4px 6px;">PERINCIAN</th>
+            <th style="width: 30%; padding: 4px 6px;">JUMLAH (RM)</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td style="padding: 5px 8px;">1. Jumlah Penginapan (${b.nights} Malam × RM 350.00)</td>
-            <td style="text-align: right; font-weight: bold; padding: 5px 8px;">RM ${totalAmount.toFixed(2)}</td>
+            <td style="padding: 4px 6px;">1. Kadar Penginapan (${b.nights} Malam × RM 350.00)</td>
+            <td style="text-align: right; font-weight: bold; padding: 4px 6px;">RM ${accommodationTotal.toFixed(2)}</td>
           </tr>
           <tr>
-            <td style="padding: 5px 8px;">2. Deposit Diterima</td>
-            <td style="text-align: right; font-weight: bold; color: #166534; padding: 5px 8px;">RM ${depositAmount.toFixed(2)}</td>
+            <td style="padding: 4px 6px;">2. Deposit Sekuriti (Dipulangkan selepas check-out)</td>
+            <td style="text-align: right; font-weight: bold; color: #166534; padding: 4px 6px;">RM ${depositAmount.toFixed(2)}</td>
+          </tr>
+          <tr class="receipt-total-row" style="font-size: 11px; background: #fff8e7;">
+            <td style="text-align: right; text-transform: uppercase; padding: 5px 6px; font-weight: bold; color: #0f2444;">JUMLAH KESELURUHAN PERLU DIJELASKAN</td>
+            <td style="text-align: right; font-size: 12px; color: #0f2444; padding: 5px 6px; font-weight: bold;">RM ${grandTotal.toFixed(2)}</td>
           </tr>
           <tr>
-            <td style="padding: 5px 8px;">3. Baki Bayaran</td>
-            <td style="text-align: right; font-weight: bold; padding: 5px 8px;">RM ${balanceAmount.toFixed(2)}</td>
+            <td style="padding: 4px 6px; color: #15803d; font-weight: bold;">3. Jumlah Telah Dibayar / Di-transfer</td>
+            <td style="text-align: right; font-weight: bold; color: #15803d; padding: 4px 6px;">RM ${paidAmount.toFixed(2)}</td>
           </tr>
-          <tr class="receipt-total-row" style="font-size: 12px;">
-            <td style="text-align: right; text-transform: uppercase; padding: 6px 8px;">JUMLAH PERLU DIJELASKAN</td>
-            <td style="text-align: right; font-size: 13px; color: #0f2444; padding: 6px 8px;">RM ${balanceAmount.toFixed(2)}</td>
+          <tr style="font-size: 11.5px; background: #f8fafc;">
+            <td style="text-align: right; text-transform: uppercase; padding: 5px 6px; font-weight: bold; color: #dc2626;">BAKI PERLU DIJELASKAN</td>
+            <td style="text-align: right; font-size: 12px; color: #dc2626; padding: 5px 6px; font-weight: bold;">RM ${balanceAmount.toFixed(2)}</td>
           </tr>
         </tbody>
       </table>
 
+      <!-- NOTA PENTING DIPULANGKAN DEPOSIT -->
+      <div style="margin-bottom: 6px; padding: 5px 8px; background: #eff6ff; border: 1px solid #93c5fd; border-radius: 4px; font-size: 9.5px; color: #1e40af; line-height: 1.3;">
+        📌 <strong>NOTA PENTING DEPOSIT:</strong> Bayaran deposit sekuriti (RM 100.00) akan dipulangkan sepenuhnya kepada penyewa selepas check-out sekiranya tiada sebarang kerosakan atau kehilangan pada homestay.
+      </div>
+
       <!-- STATUS & SUMBANGAN -->
-      <table style="width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 11px;">
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 10.5px;">
         <tr>
-          <td style="width: 48%; vertical-align: top; padding-right: 6px;">
-            <div class="receipt-navy-bar mb-1" style="padding: 3px 8px;">STATUS PEMBAYARAN</div>
-            <div style="border: 1px solid #0f2444; padding: 8px; border-radius: 4px; background: #f8fafc; line-height: 1.6;">
-              <div>[ ${b.depositReceived ? '✓' : ' '} ] Deposit Diterima</div>
-              <div>[ ${b.fullPaymentReceived ? '✓' : ' '} ] Bayaran Penuh Diterima</div>
-              <div style="margin-top: 4px;">Tarikh Terima Bayaran : <strong>${dateFormatted}</strong></div>
-              <div>Diterima Oleh : <strong>${b.receivedBy || 'RAHMAN'}</strong></div>
+          <td style="width: 48%; vertical-align: top; padding-right: 5px;">
+            <div class="receipt-navy-bar mb-1" style="padding: 2px 6px;">STATUS PEMBAYARAN</div>
+            <div style="border: 1px solid #0f2444; padding: 6px; border-radius: 4px; background: #f8fafc; line-height: 1.5;">
+              <div>[ ${paidAmount >= 100 ? '✓' : ' '} ] Deposit Sekuriti Diterima</div>
+              <div>[ ${balanceAmount <= 0 ? '✓' : ' '} ] Bayaran Penuh Diterima</div>
+              <div style="margin-top: 3px;">Tarikh Terima Bayaran : <strong>${dateFormatted}</strong></div>
+              <div>Diterima Oleh : <strong>${b.receivedBy || 'Pengurusan SofiaRizqi'}</strong></div>
             </div>
           </td>
-          <td style="width: 52%; vertical-align: top; padding-left: 6px;">
-            <div class="receipt-navy-bar mb-1" style="padding: 3px 8px;">SUMBANGAN TERIMA KASIH</div>
-            <div style="border: 1px solid #0f2444; padding: 8px; border-radius: 4px; background: #fffdf5; text-align: center; line-height: 1.4;">
+          <td style="width: 52%; vertical-align: top; padding-left: 5px;">
+            <div class="receipt-navy-bar mb-1" style="padding: 2px 6px;">SUMBANGAN TERIMA KASIH</div>
+            <div style="border: 1px solid #0f2444; padding: 6px; border-radius: 4px; background: #fffdf5; text-align: center; line-height: 1.3;">
               Terima kasih kerana memilih Sofia Rizqi Homestay.<br>
-              Kami amat menghargai kepercayaan anda. Semoga penginapan anda selesa dan bermakna bersama kami.<br>
-              <div style="font-family: Georgia, serif; font-size: 12px; color: #daa520; font-weight: bold; margin-top: 4px;">
+              Kami amat menghargai kepercayaan anda.<br>
+              <div style="font-family: Georgia, serif; font-size: 11px; color: #daa520; font-weight: bold; margin-top: 3px;">
                 Selamat Datang & Terima Kasih! 💕
               </div>
             </div>
@@ -1531,30 +1574,30 @@ function renderOfficialDocHTML(docTitle, b) {
       </table>
 
       <!-- KAEDAH & TANDATANGAN -->
-      <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 10.5px;">
         <tr>
-          <td style="width: 48%; vertical-align: top; padding-right: 6px;">
-            <div class="receipt-navy-bar mb-1" style="padding: 3px 8px;">KAEDAH PEMBAYARAN</div>
-            <div style="border: 1px solid #0f2444; padding: 6px; border-radius: 4px; line-height: 1.6; font-weight: bold;">
+          <td style="width: 48%; vertical-align: top; padding-right: 5px;">
+            <div class="receipt-navy-bar mb-1" style="padding: 2px 6px;">KAEDAH PEMBAYARAN</div>
+            <div style="border: 1px solid #0f2444; padding: 5px; border-radius: 4px; line-height: 1.5; font-weight: bold;">
               <div style="${isOnline ? 'color: #0f2444; font-weight: bold;' : 'color: #64748b; font-weight: normal;'}">( ${isOnline ? '●' : '○'} ) Online Transfer</div>
               <div style="${isTunai ? 'color: #0f2444; font-weight: bold;' : 'color: #64748b; font-weight: normal;'}">( ${isTunai ? '●' : '○'} ) Tunai</div>
               <div style="${isQR ? 'color: #0f2444; font-weight: bold;' : 'color: #64748b; font-weight: normal;'}">( ${isQR ? '●' : '○'} ) QR DuitNow</div>
               <div style="${isOther ? 'color: #0f2444; font-weight: bold;' : 'color: #64748b; font-weight: normal;'}">( ${isOther ? '●' : '○'} ) Lain-lain</div>
             </div>
           </td>
-          <td style="width: 52%; vertical-align: top; padding-left: 6px;">
-            <div class="receipt-navy-bar mb-1" style="padding: 3px 8px;">TANDATANGAN / COP</div>
-            <div style="border: 1px solid #0f2444; padding: 6px; border-radius: 4px; text-align: center; height: 58px; display: flex; flex-direction: column; justify-content: space-between;">
-              <div style="font-family: 'Brush Script MT', cursive, Georgia; font-size: 16px; color: #0f2444;">Sofia Rizqi</div>
-              <div style="border-top: 1px dashed #94a3b8; font-size: 9px; padding-top: 1px; color: #475569;">Sofia Rizqi Homestay</div>
+          <td style="width: 52%; vertical-align: top; padding-left: 5px;">
+            <div class="receipt-navy-bar mb-1" style="padding: 2px 6px;">TANDATANGAN / COP</div>
+            <div style="border: 1px solid #0f2444; padding: 5px; border-radius: 4px; text-align: center; height: 52px; display: flex; flex-direction: column; justify-content: space-between;">
+              <div style="font-family: 'Brush Script MT', cursive, Georgia; font-size: 15px; color: #0f2444;">Sofia Rizqi</div>
+              <div style="border-top: 1px dashed #94a3b8; font-size: 8.5px; padding-top: 1px; color: #475569;">Sofia Rizqi Homestay</div>
             </div>
           </td>
         </tr>
       </table>
 
       <!-- FOOTER BANNER -->
-      <div style="margin-top: 12px; background: #0f2444; color: white; padding: 6px 10px; display: flex; justify-between; align-items: center; font-size: 9.5px; border-radius: 4px;">
-        <div><strong>SELESA</strong> • Penginapan selesa seperti di rumah sendiri</div>
+      <div style="margin-top: 8px; background: #0f2444; color: white; padding: 5px 8px; display: flex; justify-between; align-items: center; font-size: 9px; border-radius: 4px;">
+        <div><strong>SELESA</strong> • Penginapan selesa</div>
         <div><strong>BERSIH</strong> • Kebersihan diutamakan</div>
         <div><strong>MESRA</strong> • Layanan mesra pelanggan</div>
         <div style="color: #daa520; font-weight: bold;">Keselesaan Seisi Keluarga 💕</div>
