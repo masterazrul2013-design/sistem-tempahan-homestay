@@ -145,7 +145,26 @@ function logout() {
   alert('Anda telah keluar dari sistem.');
 }
 
+function clearAuthFormFields() {
+  const elId = document.getElementById('single-login-id');
+  const elPwd = document.getElementById('single-login-password');
+  const elRegName = document.getElementById('single-reg-name');
+  const elRegPhone = document.getElementById('single-reg-phone');
+  const elRegIc = document.getElementById('single-reg-ic');
+  const elRegAddr = document.getElementById('single-reg-address');
+  const elRegPwd = document.getElementById('single-reg-password');
+
+  if (elId) elId.value = '';
+  if (elPwd) elPwd.value = '';
+  if (elRegName) elRegName.value = '';
+  if (elRegPhone) elRegPhone.value = '';
+  if (elRegIc) elRegIc.value = '';
+  if (elRegAddr) elRegAddr.value = '';
+  if (elRegPwd) elRegPwd.value = '';
+}
+
 function showLoginMenu() {
+  clearAuthFormFields();
   switchTab('login-menu');
   toggleSingleAuthMode('login');
 }
