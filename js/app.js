@@ -1422,6 +1422,39 @@ function viewProofModal(bookingId) {
     }
   }
 
+  const actionBtnContainer = document.getElementById('pv-action-buttons');
+  if (actionBtnContainer) {
+    if (booking.status === 'DISAHKAN') {
+      actionBtnContainer.innerHTML = `
+        <div class="w-full bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-2">
+          <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600"></i> Tempahan Ini Telah Disahkan Oleh Admin
+        </div>
+        <button onclick="closeModal('modal-proof-view')" class="w-full bg-navy-900 hover:bg-navy-800 text-white font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1 shadow">
+          Tutup
+        </button>
+      `;
+    } else if (booking.status === 'BATAL') {
+      actionBtnContainer.innerHTML = `
+        <div class="w-full bg-red-50 border border-red-300 text-red-800 text-xs font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-2">
+          <i data-lucide="x-circle" class="w-4 h-4 text-red-600"></i> Tempahan Ini Telah Ditolak / Dibatalkan
+        </div>
+        <button onclick="closeModal('modal-proof-view')" class="w-full bg-navy-900 hover:bg-navy-800 text-white font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1 shadow">
+          Tutup
+        </button>
+      `;
+    } else {
+      actionBtnContainer.innerHTML = `
+        <button onclick="approveBookingStatus('DISAHKAN')" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow">
+          <i data-lucide="check-circle" class="w-4 h-4"></i> Sahkan Tempahan (Approve)
+        </button>
+        <button onclick="approveBookingStatus('BATAL')" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow">
+          <i data-lucide="x-circle" class="w-4 h-4"></i> Tolak / Batal
+        </button>
+      `;
+    }
+  }
+
+  safeRenderIcons();
   openModal('modal-proof-view');
 }
 
