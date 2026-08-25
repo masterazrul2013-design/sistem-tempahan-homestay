@@ -1358,29 +1358,81 @@ function renderMyBookings() {
   safeRenderIcons();
 }
 
-// Proof View Modal (Admin)
+// Proof & Full Booking Details View Modal (Admin)
 function viewProofModal(bookingId) {
   activeProofBookingId = bookingId;
   const booking = bookingsData.find(b => b.id === bookingId);
   if (!booking) return;
 
   const accTotal = booking.nights * 350;
-  const grandTotal = accTotal + 100;
+  const depositAmount = 100;
+  const grandTotal = accTotal + depositAmount;
   const paid = booking.paidAmount !== undefined ? booking.paidAmount : (booking.depositReceived ? 100 : 0);
+  const balance = Math.max(0, grandTotal - paid);
 
-  document.getElementById('pv-guest-name').innerText = booking.guestName;
-  document.getElementById('pv-amount').innerText = `${paid.toFixed(2)} (Jumlah Keseluruhan: RM ${grandTotal.toFixed(2)})`;
-  document.getElementById('pv-phone').innerText = booking.guestPhone;
+  const statusBanner = document.getElementById('pv-status-banner');
+  if (statusBanner) {
+    if (booking.status === 'DISAHKAN') {
+      statusBanner.className = 'p-3 rounded-xl text-center text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-300';
+      statusBanner.innerHTML = 'Status Tempahan: 🎉 DISAHKAN OLEH ADMIN';
+    } else if (booking.status === 'BATAL') {
+      statusBanner.className = 'p-3 rounded-xl text-center text-xs font-bold bg-red-50 text-red-800 border border-red-300';
+      statusBanner.innerHTML = 'Status Tempahan: ❌ DITOLAK / DIBATALKAN';
+    } else {
+      statusBanner.className = 'p-3 rounded-xl text-center text-xs font-bold bg-amber-50 text-amber-800 border border-amber-300';
+      statusBanner.innerHTML = 'Status Tempahan: ⏳ MENUNGGU PENGESAHAN ADMIN';
+    }
+  }
+
+  const elId = document.getElementById('pv-id');
+  const elName = document.getElementById('pv-guest-name');
+  const elPhone = document.getElementById('pv-phone');
+  const elAddr = document.getElementById('pv-address');
+  const elIn = document.getElementById('pv-checkin');
+  const elOut = document.getElementById('pv-checkout');
+  const elGV = document.getElementById('pv-guests-vehicles');
+  const elAcc = document.getElementById('pv-acc-total');
+  const elDep = document.getElementById('pv-deposit');
+  const elGrand = document.getElementById('pv-grand-total');
+  const elPaid = document.getElementById('pv-paid-amount');
+  const elBal = document.getElementById('pv-balance');
+  const elMethod = document.getElementById('pv-payment-method');
+
+  if (elId) elId.innerText = booking.id;
+  if (elName) elName.innerText = booking.guestName;
+  if (elPhone) elPhone.innerText = booking.guestPhone;
+  if (elAddr) elAddr.innerText = booking.guestAddress || '-';
+  if (elIn) elIn.innerText = `${formatMalayDate(booking.checkInDate)} (${booking.nights} Malam)`;
+  if (elOut) elOut.innerText = formatMalayDate(booking.checkOutDate);
+  if (elGV) elGV.innerText = `${booking.guestCount} Tetamu | Kereta: ${booking.vehicleNumbers || '-'}`;
+  if (elAcc) elAcc.innerText = `RM ${accTotal.toFixed(2)}`;
+  if (elDep) elDep.innerText = `RM ${depositAmount.toFixed(2)}`;
+  if (elGrand) elGrand.innerText = `RM ${grandTotal.toFixed(2)}`;
+  if (elPaid) elPaid.innerText = `RM ${paid.toFixed(2)}`;
+  if (elBal) elBal.innerText = `RM ${balance.toFixed(2)}`;
+  if (elMethod) elMethod.innerText = booking.paymentMethod || 'Online Transfer';
 
   const imgContainer = document.getElementById('proof-image-container');
-  if (booking.proofImage) {
-    const proofImgUrl = booking.proofImage.startsWith('http') ? booking.proofImage : `${API_BASE}${booking.proofImage}`;
-    imgContainer.innerHTML = `<img src="${proofImgUrl}" alt="Bukti Bayaran" class="max-h-64 object-contain mx-auto rounded-lg">`;
-  } else {
-    imgContainer.innerHTML = `<p class="text-xs text-slate-400 py-10">Tiada fail bukti dimuat naik.</p>`;
+  if (imgContainer) {
+    if (booking.proofImage) {
+      const proofImgUrl = booking.proofImage.startsWith('http') ? booking.proofImage : `${API_BASE}${booking.proofImage}`;
+      imgContainer.innerHTML = `<img src="${proofImgUrl}" alt="Bukti Bayaran" class="max-h-64 object-contain mx-auto rounded-lg">`;
+    } else {
+      imgContainer.innerHTML = `<p class="text-xs text-slate-500 py-6">💵 Kaedah Bayaran: <strong>${booking.paymentMethod || 'Tunai'}</strong> (Tiada fail resit dimuat naik).</p>`;
+    }
   }
 
   openModal('modal-proof-view');
+}
+
+async function quickApproveBooking(bookingId) {
+  const b = bookingsData.find(x => x.id === bookingId);
+  if (!b) return;
+
+  if (!confirm(`Adakah anda pasti mahu MENGSAHKAN tempahan ${b.id} untuk ${b.guestName}?`)) return;
+
+  activeProofBookingId = bookingId;
+  await approveBookingStatus('DISAHKAN');
 }
 
 async function approveBookingStatus(newStatus) {
