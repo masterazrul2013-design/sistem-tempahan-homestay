@@ -631,6 +631,9 @@ async function fetchBookings() {
   }
     
   bookingsData.forEach(b => {
+    if (!b.approvedByAdmin && b.status !== 'BATAL' && b.status !== 'DITOLAK') {
+      b.status = 'MENUNGGU PENGESAHAN';
+    }
     b.ratePerNight = 350;
     b.accommodationTotal = b.nights * 350;
     b.securityDeposit = 100;
@@ -640,6 +643,7 @@ async function fetchBookings() {
     }
     b.balancePayment = Math.max(0, b.grandTotal - b.paidAmount);
   });
+  localStorage.setItem('sofia_bookings', JSON.stringify(bookingsData));
 
   updateStatsOverview();
   updateCalendarEvents();
@@ -1385,6 +1389,7 @@ async function approveBookingStatus(newStatus) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         status: newStatus,
+        approvedByAdmin: newStatus === 'DISAHKAN',
         depositReceived: newStatus === 'DISAHKAN',
         fullPaymentReceived: newStatus === 'DISAHKAN',
         paymentDate: new Date().toISOString().split('T')[0]
@@ -1406,6 +1411,7 @@ async function approveBookingStatus(newStatus) {
   const booking = bookingsData.find(b => b.id === activeProofBookingId);
   if (booking) {
     booking.status = newStatus;
+    booking.approvedByAdmin = newStatus === 'DISAHKAN';
     booking.depositReceived = newStatus === 'DISAHKAN';
     booking.fullPaymentReceived = newStatus === 'DISAHKAN';
     booking.paymentDate = new Date().toISOString().split('T')[0];
