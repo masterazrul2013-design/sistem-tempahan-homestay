@@ -724,9 +724,9 @@ function updateCalendarEvents() {
     if (isAdmin) {
       eventTitle = `${isConfirmed ? '🏠 [DISAHKAN]' : '⏳ [MENUNGGU]'} ${b.guestName}`;
     } else if (isMyBooking) {
-      eventTitle = `🏠 Tempahan Saya (${isConfirmed ? 'Disahkan' : 'Menunggu'})`;
+      eventTitle = `${isConfirmed ? '🏠 Tempahan Saya (Disahkan)' : '⏳ Tempahan Saya (Menunggu Pengesahan)'}`;
     } else {
-      eventTitle = `🔴 Telah Ditempah`;
+      eventTitle = `${isConfirmed ? '🔴 Telah Ditempah (Disahkan)' : '⏳ Telah Ditempah (Menunggu)'}`;
     }
 
     calendar.addEvent({
@@ -1011,9 +1011,9 @@ async function handleBookingSubmit(e) {
     paidAmount: isCash ? grandTotal : 0,
     balancePayment: isCash ? 0 : grandTotal,
     paymentMethod: selectedPaymentMethod,
-    status: isCash ? 'DISAHKAN' : 'MENUNGGU PENGESAHAN',
+    status: 'MENUNGGU PENGESAHAN',
     depositReceived: isCash,
-    fullPaymentReceived: isCash,
+    fullPaymentReceived: false,
     paymentDate: new Date().toISOString().split('T')[0],
     receivedBy: 'Pengurusan SofiaRizqi',
     proofImage: '',
