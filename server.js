@@ -21,6 +21,7 @@ const DATA_DIR = path.join(__dirname, 'data');
 const BOOKINGS_FILE = path.join(DATA_DIR, 'bookings.json');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
+const DISCOUNTS_FILE = path.join(DATA_DIR, 'discounts.json');
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -197,6 +198,77 @@ app.put('/api/settings', (req, res) => {
   res.json({ success: true, settings: current, message: 'Tetapan kadar harga berjaya dikemaskini!' });
 });
 
+// --- Discount Code Routes ---
+function getDiscounts() {
+  if (!fs.existsSync(DISCOUNTS_FILE)) {
+    const defaultDiscounts = [
+      { id: 'DISC-001', code: 'PROMO50', amount: 50, active: true, createdAt: new Date().toISOString() }
+    ];
+    writeJSON(DISCOUNTS_FILE, defaultDiscounts);
+    return defaultDiscounts;
+  }
+  const d = readJSON(DISCOUNTS_FILE);
+  return Array.isArray(d) ? d : [];
+}
+
+app.get('/api/discounts', (req, res) => {
+  res.json(getDiscounts());
+});
+
+app.post('/api/discounts', (req, res) => {
+  const { code, amount } = req.body;
+  if (!code || amount === undefined || isNaN(parseFloat(amount))) {
+    return res.status(400).json({ success: false, message: 'Sila masukkan Kod Diskaun dan Jumlah Diskaun yang sah!' });
+  }
+
+  const discounts = getDiscounts();
+  const cleanCode = code.trim().toUpperCase();
+
+  if (discounts.some(d => d.code === cleanCode)) {
+    return res.status(400).json({ success: false, message: 'Kod Diskaun ini telah wujud!' });
+  }
+
+  const newDiscount = {
+    id: `DISC-${Math.floor(1000 + Math.random() * 9000)}`,
+    code: cleanCode,
+    amount: parseFloat(amount),
+    active: true,
+    createdAt: new Date().toISOString()
+  };
+
+  discounts.push(newDiscount);
+  writeJSON(DISCOUNTS_FILE, discounts);
+
+  res.json({ success: true, discount: newDiscount, message: 'Kod diskaun berjaya ditambah!' });
+});
+
+app.delete('/api/discounts/:id', (req, res) => {
+  let discounts = getDiscounts();
+  const filtered = discounts.filter(d => d.id !== req.params.id);
+  writeJSON(DISCOUNTS_FILE, filtered);
+  res.json({ success: true, message: 'Kod diskaun berjaya dipadam!' });
+});
+
+app.post('/api/discounts/validate', (req, res) => {
+  const { code } = req.body;
+  if (!code) return res.json({ valid: false, message: 'Sila masukkan kod diskaun!' });
+
+  const discounts = getDiscounts();
+  const cleanCode = code.trim().toUpperCase();
+  const found = discounts.find(d => d.code === cleanCode && d.active);
+
+  if (!found) {
+    return res.json({ valid: false, message: 'Kod diskaun tidak sah atau tidak wujud.' });
+  }
+
+  res.json({
+    valid: true,
+    discountAmount: found.amount,
+    code: found.code,
+    message: `Kod Diskaun ${found.code} Sah! Diskaun RM ${found.amount.toFixed(2)} diberikan.`
+  });
+});
+
 // --- Booking Routes ---
 app.get('/api/bookings', (req, res) => {
   const { userId } = req.query;
@@ -249,8 +321,10 @@ app.post('/api/bookings', (req, res) => {
   const activeSettings = getSettings();
   const ratePerNight = req.body.ratePerNight ? parseFloat(req.body.ratePerNight) : activeSettings.ratePerNight;
   const securityDeposit = req.body.securityDeposit !== undefined ? parseFloat(req.body.securityDeposit) : activeSettings.securityDeposit;
+  const discountCode = req.body.discountCode ? req.body.discountCode.trim().toUpperCase() : '';
+  const discountAmount = req.body.discountAmount ? parseFloat(req.body.discountAmount) : 0;
   const accommodationTotal = nights * ratePerNight;
-  const grandTotal = accommodationTotal + securityDeposit;
+  const grandTotal = Math.max(0, (accommodationTotal + securityDeposit) - discountAmount);
 
   const randomNum = Math.floor(1000 + Math.random() * 9000);
   const newBookingId = `SRH${randomNum}`;
@@ -282,6 +356,8 @@ app.post('/api/bookings', (req, res) => {
     ratePerNight,
     accommodationTotal,
     securityDeposit,
+    discountCode,
+    discountAmount,
     grandTotal,
     paidAmount: userPaid,
     totalPayment: grandTotal,

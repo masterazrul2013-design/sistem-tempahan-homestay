@@ -122,12 +122,193 @@ async function handleSettingsUpdateSubmit(e) {
   alert(`🎉 Kadar harga semasa berjaya dikemaskini!\nKadar Sewa: RM ${newRate} / malam\nDeposit Sekuriti: RM ${newDeposit}`);
 }
 
+let discountsData = [];
+let activeAppliedDiscount = null;
+
+async function fetchDiscounts() {
+  try {
+    const res = await fetch(`${API_BASE}/api/discounts`);
+    if (res.ok) {
+      discountsData = await res.json();
+      localStorage.setItem('sofia_discounts', JSON.stringify(discountsData));
+    } else {
+      throw new Error('Discounts API response not OK');
+    }
+  } catch (err) {
+    const saved = localStorage.getItem('sofia_discounts');
+    if (saved) {
+      try { discountsData = JSON.parse(saved); } catch (e) { discountsData = []; }
+    } else {
+      discountsData = [
+        { id: 'DISC-001', code: 'PROMO50', amount: 50, active: true, createdAt: new Date().toISOString() }
+      ];
+      localStorage.setItem('sofia_discounts', JSON.stringify(discountsData));
+    }
+  }
+  renderDiscountsTable();
+}
+
+function renderDiscountsTable() {
+  const tbody = document.getElementById('discounts-table-body');
+  if (!tbody) return;
+
+  if (discountsData.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="4" class="p-3 text-center text-slate-400 text-xs">Tiada kod diskaun didaftarkan.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = discountsData.map(d => `
+    <tr>
+      <td class="p-2.5 font-bold text-navy-900 font-mono text-xs">${d.code}</td>
+      <td class="p-2.5 font-bold text-emerald-700 text-xs">RM ${parseFloat(d.amount).toFixed(2)}</td>
+      <td class="p-2.5"><span class="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full">Aktif</span></td>
+      <td class="p-2.5 text-center">
+        <button onclick="deleteDiscount('${d.id}')" class="bg-red-50 hover:bg-red-100 text-red-600 font-bold p-1 rounded-lg transition" title="Padam Kod">
+          <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+        </button>
+      </td>
+    </tr>
+  `).join('');
+  safeRenderIcons();
+}
+
+async function handleCreateDiscountSubmit(e) {
+  e.preventDefault();
+  const codeInput = document.getElementById('discount-code-input')?.value.trim();
+  const amountInput = document.getElementById('discount-amount-input')?.value.trim();
+
+  if (!codeInput || !amountInput) {
+    alert('Sila masukkan Kod Diskaun dan Jumlah Diskaun!');
+    return;
+  }
+
+  const cleanCode = codeInput.toUpperCase();
+  const numAmount = parseFloat(amountInput);
+  if (isNaN(numAmount) || numAmount <= 0) {
+    alert('Sila masukkan nilai diskaun yang sah!');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/api/discounts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: cleanCode, amount: numAmount })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success) {
+        alert('🎉 Kod Diskaun berjaya ditambah!');
+        if (document.getElementById('discount-code-input')) document.getElementById('discount-code-input').value = '';
+        if (document.getElementById('discount-amount-input')) document.getElementById('discount-amount-input').value = '';
+        await fetchDiscounts();
+        return;
+      } else {
+        alert(data.message);
+        return;
+      }
+    }
+  } catch (err) {
+    console.log('API unavailable, adding discount in LocalStorage...');
+  }
+
+  if (discountsData.some(d => d.code === cleanCode)) {
+    alert('Kod Diskaun ini telah wujud!');
+    return;
+  }
+
+  const newD = {
+    id: `DISC-${Math.floor(1000 + Math.random() * 9000)}`,
+    code: cleanCode,
+    amount: numAmount,
+    active: true,
+    createdAt: new Date().toISOString()
+  };
+  discountsData.push(newD);
+  localStorage.setItem('sofia_discounts', JSON.stringify(discountsData));
+  if (document.getElementById('discount-code-input')) document.getElementById('discount-code-input').value = '';
+  if (document.getElementById('discount-amount-input')) document.getElementById('discount-amount-input').value = '';
+  renderDiscountsTable();
+  alert('🎉 Kod Diskaun berjaya ditambah!');
+}
+
+async function deleteDiscount(discountId) {
+  if (!confirm('Adakah anda pasti mahu memadam kod diskaun ini?')) return;
+  try {
+    await fetch(`${API_BASE}/api/discounts/${discountId}`, { method: 'DELETE' });
+  } catch (err) {}
+  discountsData = discountsData.filter(d => d.id !== discountId);
+  localStorage.setItem('sofia_discounts', JSON.stringify(discountsData));
+  renderDiscountsTable();
+}
+
+async function applyDiscountCode() {
+  const codeInput = document.getElementById('book-discount-code')?.value.trim();
+  const feedbackBox = document.getElementById('discount-feedback-box');
+  if (!codeInput) {
+    activeAppliedDiscount = null;
+    if (feedbackBox) feedbackBox.classList.add('hidden');
+    calculateBookingPrice();
+    return;
+  }
+
+  const cleanCode = codeInput.toUpperCase();
+  let foundDiscount = null;
+
+  try {
+    const res = await fetch(`${API_BASE}/api/discounts/validate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: cleanCode })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.valid) {
+        foundDiscount = { code: data.code, amount: data.discountAmount };
+      } else {
+        if (feedbackBox) {
+          feedbackBox.className = 'text-[11px] p-2 rounded-lg font-medium bg-red-50 text-red-700 border border-red-200 block';
+          feedbackBox.innerText = `❌ ${data.message}`;
+        }
+        activeAppliedDiscount = null;
+        calculateBookingPrice();
+        return;
+      }
+    }
+  } catch (err) {
+    console.log('API unavailable, checking discount in LocalStorage...');
+  }
+
+  if (!foundDiscount) {
+    const match = discountsData.find(d => d.code === cleanCode && d.active);
+    if (match) {
+      foundDiscount = { code: match.code, amount: match.amount };
+    }
+  }
+
+  if (foundDiscount) {
+    activeAppliedDiscount = foundDiscount;
+    if (feedbackBox) {
+      feedbackBox.className = 'text-[11px] p-2 rounded-lg font-medium bg-emerald-50 text-emerald-800 border border-emerald-300 block';
+      feedbackBox.innerText = `✅ Kod Diskaun ${foundDiscount.code} Sah! Diskaun RM ${foundDiscount.amount.toFixed(2)} diberikan.`;
+    }
+  } else {
+    activeAppliedDiscount = null;
+    if (feedbackBox) {
+      feedbackBox.className = 'text-[11px] p-2 rounded-lg font-medium bg-red-50 text-red-700 border border-red-200 block';
+      feedbackBox.innerText = `❌ Kod diskaun "${cleanCode}" tidak sah atau tidak wujud.`;
+    }
+  }
+  calculateBookingPrice();
+}
+
 // Initialize App
 document.addEventListener('DOMContentLoaded', () => {
   safeRenderIcons();
   checkAuthSession();
   initCalendar();
   fetchSettings();
+  fetchDiscounts();
   fetchBookings();
   fetchUsers();
 });
@@ -858,6 +1039,12 @@ function handleNewBookingClick(startDate = '', endDate = '') {
 }
 
 function openBookingModal(startDate = '', endDate = '') {
+  activeAppliedDiscount = null;
+  const elDiscInput = document.getElementById('book-discount-code');
+  const elDiscBox = document.getElementById('discount-feedback-box');
+  if (elDiscInput) elDiscInput.value = '';
+  if (elDiscBox) elDiscBox.classList.add('hidden');
+
   const elCheckin = document.getElementById('book-checkin');
   const elCheckout = document.getElementById('book-checkout');
   const elGuests = document.getElementById('book-guests');
@@ -963,16 +1150,30 @@ function calculateBookingPrice() {
   const rate = currentSettings.ratePerNight || 350;
   const deposit = currentSettings.securityDeposit !== undefined ? currentSettings.securityDeposit : 100;
   const accommodationTotal = nights * rate;
-  const grandTotal = accommodationTotal + deposit;
+
+  const discountAmt = activeAppliedDiscount ? activeAppliedDiscount.amount : 0;
+  const grandTotal = Math.max(0, (accommodationTotal + deposit) - discountAmt);
 
   const elNights = document.getElementById('calc-nights');
   const elAcc = document.getElementById('calc-accommodation');
   const elDeposit = document.getElementById('calc-deposit');
   const elGrandTotal = document.getElementById('calc-total-grand');
+  const elDiscountRow = document.getElementById('calc-discount-row');
+  const elDiscountCodeName = document.getElementById('calc-discount-code-name');
+  const elDiscountAmount = document.getElementById('calc-discount-amount');
 
   if (elNights) elNights.innerText = nights;
   if (elAcc) elAcc.innerText = `RM ${accommodationTotal.toFixed(2)}`;
   if (elDeposit) elDeposit.innerText = `RM ${deposit.toFixed(2)}`;
+
+  if (activeAppliedDiscount && discountAmt > 0) {
+    if (elDiscountRow) elDiscountRow.classList.remove('hidden');
+    if (elDiscountCodeName) elDiscountCodeName.innerText = activeAppliedDiscount.code;
+    if (elDiscountAmount) elDiscountAmount.innerText = `-RM ${discountAmt.toFixed(2)}`;
+  } else {
+    if (elDiscountRow) elDiscountRow.classList.add('hidden');
+  }
+
   if (elGrandTotal) elGrandTotal.innerText = `RM ${grandTotal.toFixed(2)}`;
 }
 
@@ -1022,8 +1223,10 @@ async function handleBookingSubmit(e) {
   const nights = Math.ceil(Math.abs(dOut - dIn) / (1000 * 60 * 60 * 24)) || 1;
   const ratePerNight = currentSettings.ratePerNight || 350;
   const securityDeposit = currentSettings.securityDeposit !== undefined ? currentSettings.securityDeposit : 100;
+  const discountCode = activeAppliedDiscount ? activeAppliedDiscount.code : '';
+  const discountAmount = activeAppliedDiscount ? activeAppliedDiscount.amount : 0;
   const accommodationTotal = nights * ratePerNight;
-  const grandTotal = accommodationTotal + securityDeposit;
+  const grandTotal = Math.max(0, (accommodationTotal + securityDeposit) - discountAmount);
 
   try {
     const res = await fetch(`${API_BASE}/api/bookings`, {
@@ -1044,6 +1247,8 @@ async function handleBookingSubmit(e) {
         ratePerNight,
         accommodationTotal,
         securityDeposit,
+        discountCode,
+        discountAmount,
         grandTotal,
         paidAmount: selectedPaymentMethod === 'Tunai' ? grandTotal : 0
       })
@@ -1095,6 +1300,8 @@ async function handleBookingSubmit(e) {
     ratePerNight,
     accommodationTotal,
     securityDeposit,
+    discountCode,
+    discountAmount,
     grandTotal,
     paidAmount: isCash ? grandTotal : 0,
     balancePayment: isCash ? 0 : grandTotal,
@@ -1796,7 +2003,8 @@ function renderOfficialDocHTML(docTitle, b) {
   const ratePerNight = b.ratePerNight !== undefined ? parseFloat(b.ratePerNight) : (currentSettings.ratePerNight || 350);
   const depositAmount = b.securityDeposit !== undefined ? parseFloat(b.securityDeposit) : (currentSettings.securityDeposit !== undefined ? currentSettings.securityDeposit : 100);
   const accommodationTotal = b.nights * ratePerNight;
-  const grandTotal = accommodationTotal + depositAmount;
+  const discountAmount = b.discountAmount ? parseFloat(b.discountAmount) : 0;
+  const grandTotal = Math.max(0, (accommodationTotal + depositAmount) - discountAmount);
 
   const paidAmount = b.paidAmount !== undefined && b.paidAmount !== null 
     ? parseFloat(b.paidAmount) 
@@ -1902,6 +2110,12 @@ function renderOfficialDocHTML(docTitle, b) {
             <td style="padding: 4px 6px;">2. Deposit Sekuriti (Dipulangkan selepas check-out)</td>
             <td style="text-align: right; font-weight: bold; color: #166534; padding: 4px 6px;">RM ${depositAmount.toFixed(2)}</td>
           </tr>
+          ${discountAmount > 0 ? `
+          <tr>
+            <td style="padding: 4px 6px; color: #047857; font-weight: bold;">3. Diskaun Promosi (${b.discountCode || 'DISKAUN'})</td>
+            <td style="text-align: right; font-weight: bold; color: #047857; padding: 4px 6px;">-RM ${discountAmount.toFixed(2)}</td>
+          </tr>
+          ` : ''}
           <tr class="receipt-total-row" style="font-size: 11px; background: #fff8e7;">
             <td style="text-align: right; text-transform: uppercase; padding: 5px 6px; font-weight: bold; color: #0f2444;">JUMLAH KESELURUHAN PERLU DIJELASKAN</td>
             <td style="text-align: right; font-size: 12px; color: #0f2444; padding: 5px 6px; font-weight: bold;">RM ${grandTotal.toFixed(2)}</td>

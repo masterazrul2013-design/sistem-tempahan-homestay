@@ -298,6 +298,46 @@
           </form>
         </div>
 
+        <!-- ADMIN DISCOUNT CODES MANAGEMENT CARD -->
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-3">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2">
+            <h3 class="text-xs font-bold text-navy-900 uppercase tracking-wider flex items-center gap-2">
+              <i data-lucide="ticket" class="w-4 h-4 text-gold-500"></i> Pengurusan Kod Diskaun / Baucar Promosi
+            </h3>
+            <span class="text-[11px] text-slate-500">Cipta kod baucar diskaun untuk digunakan oleh pelanggan semasa tempahan</span>
+          </div>
+
+          <form onsubmit="handleCreateDiscountSubmit(event)" class="flex flex-wrap items-end gap-3">
+            <div class="flex-1 min-w-[150px]">
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Kod Diskaun <span class="text-red-500">*</span></label>
+              <input type="text" id="discount-code-input" required placeholder="Cth: PROMO50" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold uppercase focus:ring-2 focus:ring-navy-900 focus:outline-none">
+            </div>
+            <div class="flex-1 min-w-[150px]">
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Jumlah Diskaun (RM) <span class="text-red-500">*</span></label>
+              <input type="number" id="discount-amount-input" min="1" step="any" required placeholder="50" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold text-emerald-700 focus:ring-2 focus:ring-navy-900 focus:outline-none">
+            </div>
+            <button type="submit" class="bg-navy-900 hover:bg-navy-800 text-gold-500 font-bold py-2.5 px-4 rounded-xl text-xs shadow transition flex items-center gap-1.5 cursor-pointer">
+              <i data-lucide="plus-circle" class="w-4 h-4"></i> + Tambah Kod Diskaun
+            </button>
+          </form>
+
+          <div class="overflow-x-auto rounded-xl border border-slate-200 mt-2">
+            <table class="w-full text-left text-xs text-slate-700">
+              <thead class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                <tr>
+                  <th class="p-2.5">Kod Diskaun</th>
+                  <th class="p-2.5">Nilai Diskaun</th>
+                  <th class="p-2.5">Status</th>
+                  <th class="p-2.5 text-center">Tindakan</th>
+                </tr>
+              </thead>
+              <tbody id="discounts-table-body" class="divide-y divide-slate-100">
+                <!-- Loaded dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
           <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
@@ -465,6 +505,20 @@
           </div>
         </div>
 
+        <!-- DISCOUNT VOUCHER CARD -->
+        <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
+          <label class="block text-xs font-bold text-navy-900 uppercase tracking-wider flex items-center gap-1.5">
+            <i data-lucide="ticket" class="w-4 h-4 text-gold-500"></i> Kod Diskaun / Baucar Promosi (Jika Ada)
+          </label>
+          <div class="flex gap-2">
+            <input type="text" id="book-discount-code" placeholder="Masukkan kod (Cth: PROMO50)" class="flex-1 px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold uppercase focus:ring-2 focus:ring-navy-900 focus:outline-none">
+            <button type="button" onclick="applyDiscountCode()" class="bg-navy-900 hover:bg-navy-800 text-gold-500 font-bold px-4 py-2 rounded-xl text-xs shadow transition flex items-center gap-1 cursor-pointer">
+              Guna Kod
+            </button>
+          </div>
+          <div id="discount-feedback-box" class="hidden text-[11px] p-2 rounded-lg font-medium"></div>
+        </div>
+
         <!-- PAYMENT METHOD DROPDOWN CARD -->
         <div class="bg-amber-50 p-4 rounded-xl border-2 border-gold-500 space-y-2">
           <label class="block text-xs font-bold text-navy-900 uppercase tracking-wider">
@@ -480,7 +534,7 @@
           </div>
         </div>
 
-        <!-- Realtime Price Summary Box (Penginapan + Deposit = JUMLAH KESELURAHAN) -->
+        <!-- Realtime Price Summary Box (Penginapan + Deposit - Diskaun = JUMLAH KESELURAHAN) -->
         <div class="bg-gold-50/70 p-3.5 rounded-xl border border-gold-500/30 space-y-1.5">
           <div class="flex justify-between text-xs text-slate-700">
             <span>Harga Penginapan (<span id="calc-nights">0</span> Malam × RM 350.00):</span>
@@ -489,6 +543,10 @@
           <div class="flex justify-between text-xs text-slate-700">
             <span>Deposit Sekuriti (Dipulangkan Selepas Check-out):</span>
             <strong id="calc-deposit" class="text-emerald-700">RM 100.00</strong>
+          </div>
+          <div id="calc-discount-row" class="hidden flex justify-between text-xs text-emerald-800 font-bold bg-emerald-100/60 p-1.5 rounded-lg border border-emerald-300">
+            <span>Diskaun Promosi (<span id="calc-discount-code-name">PROMO50</span>):</span>
+            <strong id="calc-discount-amount">-RM 0.00</strong>
           </div>
           <hr class="border-gold-500/30">
           <div class="flex justify-between text-sm text-navy-900 font-bold">
