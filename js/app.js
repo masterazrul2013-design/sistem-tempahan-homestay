@@ -1,6 +1,7 @@
 // Main Client JS Application for SofiaRizqi Homestay
 
 const API_BASE = window.location.protocol.startsWith('http') ? '' : 'http://localhost:3000';
+const CLOUD_SYNC_URL = 'https://ntfy.sh/sofia_homestay_sync_v1';
 
 let currentUser = null;
 let bookingsData = [];
@@ -17,8 +18,158 @@ const DEFAULT_USERS = [
   { id: 'USR-2580', username: '0194218635', phone: '0194218635', ic: '810316025699', name: 'MOHD AZRULNIZAM', role: 'user', password: '1234', address: 'ALOR SETAR', createdAt: '2026-08-25T00:00:00.000Z' }
 ];
 
-// Default Fallback Bookings
-const DEFAULT_BOOKINGS = [];
+// Default Fallback Bookings (Guaranteed to be present across all devices and platforms)
+const DEFAULT_BOOKINGS = [
+  {
+    id: 'SRH2580',
+    receiptNo: 'SRH-0001',
+    invoiceNo: 'INV-0001',
+    userId: 'USR-2580',
+    guestName: 'MOHD AZRULNIZAM',
+    guestPhone: '0194218635',
+    guestAddress: 'ALOR SETAR',
+    homestayName: 'SofiaRizqi Homestay',
+    checkInDate: '2026-09-10',
+    checkInTime: '2 petang',
+    checkOutDate: '2026-09-11',
+    checkOutTime: '12.00 Tengahari',
+    guestCount: '4',
+    vehicleNumbers: 'VDK9939',
+    purpose: 'Penginapan Homestay',
+    nights: 1,
+    ratePerNight: 350,
+    accommodationTotal: 350,
+    securityDeposit: 100,
+    grandTotal: 450,
+    paidAmount: 450,
+    totalPayment: 450,
+    balancePayment: 0,
+    paymentMethod: 'Online Transfer',
+    status: 'DISAHKAN',
+    depositReceived: true,
+    fullPaymentReceived: true,
+    approvedByAdmin: true,
+    paymentDate: '2026-09-08',
+    receivedBy: 'Pengurusan SofiaRizqi',
+    proofImage: '',
+    createdAt: '2026-09-08T00:00:00.000Z'
+  },
+  {
+    id: 'SRH2581',
+    receiptNo: 'SRH-0002',
+    invoiceNo: 'INV-0002',
+    userId: 'USR-2580',
+    guestName: 'MOHD AZRULNIZAM',
+    guestPhone: '0194218635',
+    guestAddress: 'ALOR SETAR',
+    homestayName: 'SofiaRizqi Homestay',
+    checkInDate: '2026-09-29',
+    checkInTime: '2 petang',
+    checkOutDate: '2026-09-30',
+    checkOutTime: '12.00 Tengahari',
+    guestCount: '4',
+    vehicleNumbers: 'VDK9939',
+    purpose: 'Penginapan Homestay',
+    nights: 1,
+    ratePerNight: 350,
+    accommodationTotal: 350,
+    securityDeposit: 100,
+    grandTotal: 450,
+    paidAmount: 100,
+    totalPayment: 450,
+    balancePayment: 350,
+    paymentMethod: 'Online Transfer',
+    status: 'MENUNGGU PENGESAHAN',
+    depositReceived: true,
+    fullPaymentReceived: false,
+    approvedByAdmin: false,
+    paymentDate: '2026-09-08',
+    receivedBy: 'Pengurusan SofiaRizqi',
+    proofImage: '',
+    createdAt: '2026-09-08T00:00:00.000Z'
+  }
+];
+
+// Broadcast event to Cloud Sync topic
+async function broadcastSyncEvent(eventData) {
+  try {
+    await fetch(CLOUD_SYNC_URL, {
+      method: 'POST',
+      headers: { 'Title': 'SofiaRizqi Sync' },
+      body: JSON.stringify(eventData)
+    });
+  } catch (err) {
+    console.log('Broadcast sync error:', err);
+  }
+}
+
+// Fetch latest events from Cloud Sync
+async function fetchCloudSyncEvents() {
+  try {
+    const res = await fetch(`${CLOUD_SYNC_URL}/json?poll=1`);
+    if (!res.ok) return;
+    const text = await res.text();
+    const lines = text.trim().split('\n');
+    let hasChanges = false;
+
+    lines.forEach(line => {
+      if (!line.trim()) return;
+      try {
+        const item = JSON.parse(line);
+        if (item.event === 'message' && item.message) {
+          const payload = JSON.parse(item.message);
+          if (payload.type === 'NEW_BOOKING' && payload.booking) {
+            const b = payload.booking;
+            const idx = bookingsData.findIndex(x => x.id === b.id);
+            if (idx === -1) {
+              bookingsData.push(b);
+              hasChanges = true;
+            } else {
+              // Merge if newer
+              bookingsData[idx] = { ...bookingsData[idx], ...b };
+              hasChanges = true;
+            }
+          } else if (payload.type === 'UPDATE_STATUS' && payload.bookingId) {
+            const b = bookingsData.find(x => x.id === payload.bookingId);
+            if (b && b.status !== payload.status) {
+              b.status = payload.status;
+              if (payload.status === 'DISAHKAN') {
+                b.approvedByAdmin = true;
+                b.depositReceived = true;
+              }
+              hasChanges = true;
+            }
+          } else if (payload.type === 'SYNC_BOOKINGS' && Array.isArray(payload.bookings)) {
+            payload.bookings.forEach(b => {
+              const idx = bookingsData.findIndex(x => x.id === b.id);
+              if (idx === -1) {
+                bookingsData.push(b);
+                hasChanges = true;
+              }
+            });
+          } else if (payload.type === 'REGISTER_USER' && payload.user) {
+            const u = payload.user;
+            const idx = usersData.findIndex(x => x.id === u.id || (u.phone && x.phone === u.phone));
+            if (idx === -1) {
+              usersData.push(u);
+              localStorage.setItem('sofia_users', JSON.stringify(usersData));
+            }
+          }
+        }
+      } catch (e) {}
+    });
+
+    if (hasChanges) {
+      localStorage.setItem('sofia_bookings', JSON.stringify(bookingsData));
+      updateStatsOverview();
+      updateCalendarEvents();
+      renderBookingsTable();
+      renderMyBookings();
+    }
+  } catch (err) {
+    console.log('Fetch cloud sync error:', err);
+  }
+}
 
 // Safe icon renderer
 function safeRenderIcons() {
@@ -312,6 +463,11 @@ document.addEventListener('DOMContentLoaded', () => {
   fetchDiscounts();
   fetchBookings();
   fetchUsers();
+
+  // Auto-sync across devices every 15 seconds
+  setInterval(() => {
+    fetchCloudSyncEvents();
+  }, 15000);
 });
 
 // Left Sidebar Navigation Toggle Hide / Show
@@ -802,42 +958,39 @@ async function fetchUsers() {
     const res = await fetch(`${API_BASE}/api/users`);
     if (res.ok) {
       usersData = await res.json();
-      localStorage.setItem('sofia_users', JSON.stringify(usersData));
-      renderUsersTable();
-      return;
     }
   } catch (err) {}
 
-  try {
-    const staticRes = await fetch('./data/users.json');
-    if (staticRes.ok) {
-      const staticUsers = await staticRes.json();
-      let localUsers = JSON.parse(localStorage.getItem('sofia_users') || 'null') || [];
-      const combined = [...staticUsers, ...DEFAULT_USERS];
-      combined.forEach(u => {
-        if (!localUsers.some(l => l.id === u.id || (l.phone && l.phone === u.phone))) {
-          localUsers.push(u);
-        }
-      });
-      usersData = localUsers;
-      localStorage.setItem('sofia_users', JSON.stringify(usersData));
-      renderUsersTable();
-      return;
-    }
-  } catch (err) {}
+  if (!usersData || usersData.length === 0) {
+    try {
+      const staticRes = await fetch('./data/users.json');
+      if (staticRes.ok) {
+        usersData = await staticRes.json();
+      }
+    } catch (err) {}
+  }
+
+  if (!usersData) usersData = [];
 
   let localUsers = JSON.parse(localStorage.getItem('sofia_users') || 'null');
-  if (!localUsers || localUsers.length === 0) {
-    localUsers = [...DEFAULT_USERS];
-  } else {
-    DEFAULT_USERS.forEach(defU => {
-      if (!localUsers.some(u => u.id === defU.id || u.phone === defU.phone)) {
-        localUsers.push(defU);
+  if (localUsers && Array.isArray(localUsers)) {
+    localUsers.forEach(lu => {
+      const idx = usersData.findIndex(u => u.id === lu.id || (u.phone && u.phone === lu.phone));
+      if (idx !== -1) {
+        usersData[idx] = lu;
+      } else {
+        usersData.push(lu);
       }
     });
   }
-  localStorage.setItem('sofia_users', JSON.stringify(localUsers));
-  usersData = localUsers;
+
+  DEFAULT_USERS.forEach(defU => {
+    if (!usersData.some(u => u.id === defU.id || u.phone === defU.phone)) {
+      usersData.push(defU);
+    }
+  });
+
+  localStorage.setItem('sofia_users', JSON.stringify(usersData));
   renderUsersTable();
 }
 
@@ -902,21 +1055,47 @@ async function fetchBookings() {
   try {
     const res = await fetch(`${API_BASE}/api/bookings`);
     if (res.ok) {
-      bookingsData = await res.json();
-      localStorage.setItem('sofia_bookings', JSON.stringify(bookingsData));
-    } else {
-      throw new Error('API Response Not OK');
+      const apiBookings = await res.json();
+      if (apiBookings && apiBookings.length > 0) {
+        bookingsData = apiBookings;
+      }
     }
-  } catch (err) {
-    console.log('API unavailable, loading LocalStorage bookings Data...');
-    let localBookings = JSON.parse(localStorage.getItem('sofia_bookings') || 'null');
-    if (!localBookings || localBookings.length === 0) {
-      localBookings = DEFAULT_BOOKINGS;
-      localStorage.setItem('sofia_bookings', JSON.stringify(localBookings));
-    }
-    bookingsData = localBookings;
+  } catch (err) {}
+
+  if (!bookingsData || bookingsData.length === 0) {
+    try {
+      const staticRes = await fetch('./data/bookings.json');
+      if (staticRes.ok) {
+        bookingsData = await staticRes.json();
+      }
+    } catch (err) {}
   }
-    
+
+  if (!bookingsData) bookingsData = [];
+
+  // Guarantee pre-seeded bookings are always present
+  DEFAULT_BOOKINGS.forEach(defB => {
+    if (!bookingsData.some(b => b.id === defB.id)) {
+      bookingsData.push(defB);
+    }
+  });
+
+  // Merge from localStorage
+  let localBookings = JSON.parse(localStorage.getItem('sofia_bookings') || 'null');
+  if (localBookings && Array.isArray(localBookings)) {
+    localBookings.forEach(lb => {
+      const idx = bookingsData.findIndex(b => b.id === lb.id);
+      if (idx !== -1) {
+        bookingsData[idx] = lb;
+      } else {
+        bookingsData.push(lb);
+      }
+    });
+  }
+
+  // Poll cloud sync events
+  await fetchCloudSyncEvents();
+
   bookingsData.forEach(b => {
     if (!b.approvedByAdmin && b.status !== 'BATAL' && b.status !== 'DITOLAK') {
       b.status = 'MENUNGGU PENGESAHAN';
@@ -928,14 +1107,15 @@ async function fetchBookings() {
       b.securityDeposit = currentSettings.securityDeposit !== undefined ? currentSettings.securityDeposit : 100;
     }
     b.accommodationTotal = b.nights * b.ratePerNight;
-    b.grandTotal = b.accommodationTotal + b.securityDeposit;
+    const disc = b.discountAmount ? parseFloat(b.discountAmount) : 0;
+    b.grandTotal = Math.max(0, (b.accommodationTotal + b.securityDeposit) - disc);
     if (b.paidAmount === undefined || b.paidAmount === null) {
       b.paidAmount = b.depositReceived ? (b.fullPaymentReceived ? b.grandTotal : b.securityDeposit) : 0;
     }
     b.balancePayment = Math.max(0, b.grandTotal - b.paidAmount);
   });
-  localStorage.setItem('sofia_bookings', JSON.stringify(bookingsData));
 
+  localStorage.setItem('sofia_bookings', JSON.stringify(bookingsData));
   updateStatsOverview();
   updateCalendarEvents();
   renderBookingsTable();
@@ -1288,6 +1468,7 @@ async function handleBookingSubmit(e) {
       const data = await res.json();
       if (data.success) {
         closeModal('modal-booking');
+        await broadcastSyncEvent({ type: 'NEW_BOOKING', booking: data.booking });
         await fetchBookings();
 
         if (selectedPaymentMethod === 'Tunai') {
@@ -1353,6 +1534,8 @@ async function handleBookingSubmit(e) {
   updateCalendarEvents();
   renderBookingsTable();
   renderMyBookings();
+
+  await broadcastSyncEvent({ type: 'NEW_BOOKING', booking: newBooking });
 
   if (selectedPaymentMethod === 'Tunai') {
     alert('🎉 Tempahan Bayaran Tunai Berjaya! Rekod tempahan anda kini dipaparkan di senarai tempahan.');
@@ -1862,6 +2045,7 @@ async function approveBookingStatus(newStatus) {
   updateCalendarEvents();
   renderBookingsTable();
   renderMyBookings();
+  await broadcastSyncEvent({ type: 'UPDATE_STATUS', bookingId: activeProofBookingId, status: newStatus });
 }
 
 // WhatsApp Generator Modal

@@ -18,13 +18,16 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // File paths
 const DATA_DIR = path.join(__dirname, 'data');
+const PUBLIC_DATA_DIR = path.join(__dirname, 'public', 'data');
 const BOOKINGS_FILE = path.join(DATA_DIR, 'bookings.json');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
 const DISCOUNTS_FILE = path.join(DATA_DIR, 'discounts.json');
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
+const CLOUD_SYNC_URL = 'https://ntfy.sh/sofia_homestay_sync_v1';
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+if (!fs.existsSync(PUBLIC_DATA_DIR)) fs.mkdirSync(PUBLIC_DATA_DIR, { recursive: true });
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
 // Multer storage configuration for proof of payment
@@ -52,11 +55,74 @@ function readJSON(filePath) {
 function writeJSON(filePath, data) {
   try {
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
+    // Auto-mirror to public/data if relevant
+    const baseName = path.basename(filePath);
+    const publicMirror = path.join(PUBLIC_DATA_DIR, baseName);
+    if (filePath !== publicMirror && fs.existsSync(PUBLIC_DATA_DIR)) {
+      try {
+        fs.writeFileSync(publicMirror, JSON.stringify(data, null, 2), 'utf8');
+      } catch (e) {}
+    }
     return true;
   } catch (err) {
     console.error(`Error writing ${filePath}:`, err);
     return false;
   }
+}
+
+// Cloud Sync Helpers
+async function broadcastSync(msg) {
+  try {
+    await fetch(CLOUD_SYNC_URL, {
+      method: 'POST',
+      headers: { 'Title': 'SofiaRizqi Server' },
+      body: JSON.stringify(msg)
+    });
+  } catch (err) {}
+}
+
+async function syncFromCloud() {
+  try {
+    const res = await fetch(`${CLOUD_SYNC_URL}/json?poll=1`);
+    if (!res.ok) return;
+    const text = await res.text();
+    const lines = text.trim().split('\n');
+    let bookingsChanged = false;
+    let bookings = readJSON(BOOKINGS_FILE);
+
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      try {
+        const item = JSON.parse(line);
+        if (item.event === 'message' && item.message) {
+          const payload = JSON.parse(item.message);
+          if (payload.type === 'NEW_BOOKING' && payload.booking) {
+            const b = payload.booking;
+            if (!bookings.some(x => x.id === b.id)) {
+              bookings.push(b);
+              bookingsChanged = true;
+              console.log(`[Cloud Sync] Received new booking from remote device: ${b.id} (${b.guestName})`);
+            }
+          } else if (payload.type === 'UPDATE_STATUS' && payload.bookingId) {
+            const b = bookings.find(x => x.id === payload.bookingId);
+            if (b && b.status !== payload.status) {
+              b.status = payload.status;
+              if (payload.status === 'DISAHKAN') {
+                b.approvedByAdmin = true;
+                b.depositReceived = true;
+              }
+              bookingsChanged = true;
+              console.log(`[Cloud Sync] Updated status for ${b.id} to ${payload.status}`);
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    if (bookingsChanged) {
+      writeJSON(BOOKINGS_FILE, bookings);
+    }
+  } catch (err) {}
 }
 
 // Check date overlap function (Inclusive check to block same-day check-in/check-out overlap)
@@ -374,6 +440,7 @@ app.post('/api/bookings', (req, res) => {
 
   bookings.push(newBooking);
   writeJSON(BOOKINGS_FILE, bookings);
+  broadcastSync({ type: 'NEW_BOOKING', booking: newBooking });
 
   res.json({ success: true, booking: newBooking, message: isCash ? 'Tempahan Tunai Berjaya Disahkan!' : 'Tempahan berjaya dibuat! Sila teruskan pembayaran.' });
 });
@@ -387,6 +454,7 @@ app.put('/api/bookings/:id', (req, res) => {
   const updatedBooking = { ...bookings[index], ...req.body };
   bookings[index] = updatedBooking;
   writeJSON(BOOKINGS_FILE, bookings);
+  broadcastSync({ type: 'UPDATE_STATUS', bookingId: req.params.id, status: updatedBooking.status });
 
   res.json({ success: true, booking: updatedBooking, message: 'Maklumat tempahan berjaya dikemaskini!' });
 });
@@ -446,4 +514,7 @@ app.listen(PORT, () => {
   console.log(`  SISTEM TEMPAHAN SOFIARIZQI HOMESTAY BERJAYA DILANCARKAN`);
   console.log(`  URL: http://localhost:${PORT}`);
   console.log(`====================================================`);
+  // Start cloud sync background task
+  syncFromCloud();
+  setInterval(syncFromCloud, 15000);
 });
