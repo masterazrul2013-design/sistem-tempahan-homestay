@@ -7,5 +7,16 @@
     "username": "admin",
     "password": "1234",
     "createdAt": "2026-08-25T00:00:00.000Z"
+  },
+  {
+    "id": "USR-2580",
+    "role": "user",
+    "name": "MOHD AZRULNIZAM",
+    "phone": "0194218635",
+    "ic": "810316025699",
+    "username": "0194218635",
+    "password": "1234",
+    "address": "ALOR SETAR",
+    "createdAt": "2026-08-25T00:00:00.000Z"
   }
 ]

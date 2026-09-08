@@ -1,0 +1,9 @@
+[
+  {
+    "id": "DISC-001",
+    "code": "PROMO50",
+    "amount": 50,
+    "active": true,
+    "createdAt": "2026-09-08T00:38:39.241Z"
+  }
+]

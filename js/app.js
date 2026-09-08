@@ -11,9 +11,10 @@ let activePendingUploadBookingId = null;
 let activeReceiptBookingId = null;
 let activeReceiptType = 'RESIT PEMBAYARAN';
 
-// Default Fallback Admin Account ONLY (All dummy users cleared)
+// Default Fallback Admin & Pre-seeded User Accounts
 const DEFAULT_USERS = [
-  { id: 'USR-ADMIN', username: 'admin', phone: '0192298176', name: 'Pengurusan SofiaRizqi', role: 'admin', password: '1234', createdAt: '2026-08-25T00:00:00.000Z' }
+  { id: 'USR-ADMIN', username: 'admin', phone: '0192298176', name: 'Pengurusan SofiaRizqi', role: 'admin', password: '1234', createdAt: '2026-08-25T00:00:00.000Z' },
+  { id: 'USR-2580', username: '0194218635', phone: '0194218635', ic: '810316025699', name: 'MOHD AZRULNIZAM', role: 'user', password: '1234', address: 'ALOR SETAR', createdAt: '2026-08-25T00:00:00.000Z' }
 ];
 
 // Default Fallback Bookings
@@ -484,9 +485,15 @@ async function handleSingleLoginSubmit(e) {
   // LocalStorage Fallback Auth
   let localUsers = JSON.parse(localStorage.getItem('sofia_users') || 'null');
   if (!localUsers || localUsers.length === 0) {
-    localUsers = DEFAULT_USERS;
-    localStorage.setItem('sofia_users', JSON.stringify(localUsers));
+    localUsers = [...DEFAULT_USERS];
+  } else {
+    DEFAULT_USERS.forEach(defU => {
+      if (!localUsers.some(u => u.id === defU.id || u.phone === defU.phone)) {
+        localUsers.push(defU);
+      }
+    });
   }
+  localStorage.setItem('sofia_users', JSON.stringify(localUsers));
 
   const foundUser = localUsers.find(u => {
     const uPhone = (u.phone || '').replace(/\D/g, '');
@@ -803,9 +810,15 @@ async function fetchUsers() {
   } catch (err) {
     let localUsers = JSON.parse(localStorage.getItem('sofia_users') || 'null');
     if (!localUsers || localUsers.length === 0) {
-      localUsers = DEFAULT_USERS;
-      localStorage.setItem('sofia_users', JSON.stringify(localUsers));
+      localUsers = [...DEFAULT_USERS];
+    } else {
+      DEFAULT_USERS.forEach(defU => {
+        if (!localUsers.some(u => u.id === defU.id || u.phone === defU.phone)) {
+          localUsers.push(defU);
+        }
+      });
     }
+    localStorage.setItem('sofia_users', JSON.stringify(localUsers));
     usersData = localUsers;
   }
   renderUsersTable();
