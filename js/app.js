@@ -47,11 +47,87 @@ function isBookingOwnedByUser(booking, user) {
   return false;
 }
 
+let currentSettings = { ratePerNight: 350, securityDeposit: 100 };
+
+async function fetchSettings() {
+  try {
+    const res = await fetch(`${API_BASE}/api/settings`);
+    if (res.ok) {
+      const data = await res.json();
+      currentSettings = {
+        ratePerNight: data.ratePerNight !== undefined ? parseFloat(data.ratePerNight) : 350,
+        securityDeposit: data.securityDeposit !== undefined ? parseFloat(data.securityDeposit) : 100
+      };
+      localStorage.setItem('sofia_settings', JSON.stringify(currentSettings));
+    } else {
+      throw new Error('Settings API response not OK');
+    }
+  } catch (err) {
+    const saved = localStorage.getItem('sofia_settings');
+    if (saved) {
+      try {
+        currentSettings = JSON.parse(saved);
+      } catch (e) {
+        currentSettings = { ratePerNight: 350, securityDeposit: 100 };
+      }
+    } else {
+      currentSettings = { ratePerNight: 350, securityDeposit: 100 };
+      localStorage.setItem('sofia_settings', JSON.stringify(currentSettings));
+    }
+  }
+  updatePricingUI();
+}
+
+function updatePricingUI() {
+  const sidebarRate = document.getElementById('sidebar-rate-per-night');
+  const sidebarDeposit = document.getElementById('sidebar-security-deposit');
+  const inputRate = document.getElementById('setting-rate-per-night');
+  const inputDeposit = document.getElementById('setting-security-deposit');
+
+  if (sidebarRate) sidebarRate.innerText = `RM ${currentSettings.ratePerNight} / malam`;
+  if (sidebarDeposit) sidebarDeposit.innerText = `RM ${currentSettings.securityDeposit}`;
+  if (inputRate && document.activeElement !== inputRate) inputRate.value = currentSettings.ratePerNight;
+  if (inputDeposit && document.activeElement !== inputDeposit) inputDeposit.value = currentSettings.securityDeposit;
+
+  calculateBookingPrice();
+}
+
+async function handleSettingsUpdateSubmit(e) {
+  e.preventDefault();
+  const rateInput = document.getElementById('setting-rate-per-night')?.value.trim();
+  const depositInput = document.getElementById('setting-security-deposit')?.value.trim();
+
+  const newRate = parseFloat(rateInput);
+  const newDeposit = parseFloat(depositInput);
+
+  if (isNaN(newRate) || newRate <= 0 || isNaN(newDeposit) || newDeposit < 0) {
+    alert('Sila masukkan nilai kadar sewa dan deposit yang sah!');
+    return;
+  }
+
+  currentSettings = { ratePerNight: newRate, securityDeposit: newDeposit };
+  localStorage.setItem('sofia_settings', JSON.stringify(currentSettings));
+
+  try {
+    await fetch(`${API_BASE}/api/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(currentSettings)
+    });
+  } catch (err) {
+    console.log('API unavailable, settings saved in LocalStorage...');
+  }
+
+  updatePricingUI();
+  alert(`🎉 Kadar harga semasa berjaya dikemaskini!\nKadar Sewa: RM ${newRate} / malam\nDeposit Sekuriti: RM ${newDeposit}`);
+}
+
 // Initialize App
 document.addEventListener('DOMContentLoaded', () => {
   safeRenderIcons();
   checkAuthSession();
   initCalendar();
+  fetchSettings();
   fetchBookings();
   fetchUsers();
 });
@@ -634,12 +710,16 @@ async function fetchBookings() {
     if (!b.approvedByAdmin && b.status !== 'BATAL' && b.status !== 'DITOLAK') {
       b.status = 'MENUNGGU PENGESAHAN';
     }
-    b.ratePerNight = 350;
-    b.accommodationTotal = b.nights * 350;
-    b.securityDeposit = 100;
-    b.grandTotal = b.accommodationTotal + 100;
+    if (b.ratePerNight === undefined || b.ratePerNight === null) {
+      b.ratePerNight = currentSettings.ratePerNight || 350;
+    }
+    if (b.securityDeposit === undefined || b.securityDeposit === null) {
+      b.securityDeposit = currentSettings.securityDeposit !== undefined ? currentSettings.securityDeposit : 100;
+    }
+    b.accommodationTotal = b.nights * b.ratePerNight;
+    b.grandTotal = b.accommodationTotal + b.securityDeposit;
     if (b.paidAmount === undefined || b.paidAmount === null) {
-      b.paidAmount = b.depositReceived ? (b.fullPaymentReceived ? b.grandTotal : 100) : 0;
+      b.paidAmount = b.depositReceived ? (b.fullPaymentReceived ? b.grandTotal : b.securityDeposit) : 0;
     }
     b.balancePayment = Math.max(0, b.grandTotal - b.paidAmount);
   });
@@ -880,17 +960,19 @@ function calculateBookingPrice() {
 
   const diffTime = Math.abs(dOut - dIn);
   const nights = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  const rate = 350;
-  const deposit = 100;
+  const rate = currentSettings.ratePerNight || 350;
+  const deposit = currentSettings.securityDeposit !== undefined ? currentSettings.securityDeposit : 100;
   const accommodationTotal = nights * rate;
   const grandTotal = accommodationTotal + deposit;
 
   const elNights = document.getElementById('calc-nights');
   const elAcc = document.getElementById('calc-accommodation');
+  const elDeposit = document.getElementById('calc-deposit');
   const elGrandTotal = document.getElementById('calc-total-grand');
 
   if (elNights) elNights.innerText = nights;
   if (elAcc) elAcc.innerText = `RM ${accommodationTotal.toFixed(2)}`;
+  if (elDeposit) elDeposit.innerText = `RM ${deposit.toFixed(2)}`;
   if (elGrandTotal) elGrandTotal.innerText = `RM ${grandTotal.toFixed(2)}`;
 }
 
@@ -938,8 +1020,9 @@ async function handleBookingSubmit(e) {
   }
 
   const nights = Math.ceil(Math.abs(dOut - dIn) / (1000 * 60 * 60 * 24)) || 1;
-  const accommodationTotal = nights * 350;
-  const securityDeposit = 100;
+  const ratePerNight = currentSettings.ratePerNight || 350;
+  const securityDeposit = currentSettings.securityDeposit !== undefined ? currentSettings.securityDeposit : 100;
+  const accommodationTotal = nights * ratePerNight;
   const grandTotal = accommodationTotal + securityDeposit;
 
   try {
@@ -958,6 +1041,7 @@ async function handleBookingSubmit(e) {
         purpose,
         paymentMethod: selectedPaymentMethod,
         nights,
+        ratePerNight,
         accommodationTotal,
         securityDeposit,
         grandTotal,
@@ -1008,9 +1092,9 @@ async function handleBookingSubmit(e) {
     vehicleNumbers: vehicleNumbers || '-',
     purpose: purpose || 'Penginapan Homestay',
     nights,
-    ratePerNight: 350,
+    ratePerNight,
     accommodationTotal,
-    securityDeposit: 100,
+    securityDeposit,
     grandTotal,
     paidAmount: isCash ? grandTotal : 0,
     balancePayment: isCash ? 0 : grandTotal,
@@ -1385,8 +1469,9 @@ function viewProofModal(bookingId) {
   const booking = bookingsData.find(b => b.id === bookingId);
   if (!booking) return;
 
-  const accTotal = booking.nights * 350;
-  const depositAmount = 100;
+  const ratePerNight = booking.ratePerNight !== undefined ? parseFloat(booking.ratePerNight) : (currentSettings.ratePerNight || 350);
+  const depositAmount = booking.securityDeposit !== undefined ? parseFloat(booking.securityDeposit) : (currentSettings.securityDeposit !== undefined ? currentSettings.securityDeposit : 100);
+  const accTotal = booking.nights * ratePerNight;
   const grandTotal = accTotal + depositAmount;
   const paid = booking.paidAmount !== undefined ? booking.paidAmount : (booking.depositReceived ? 100 : 0);
   const balance = Math.max(0, grandTotal - paid);
@@ -1708,8 +1793,9 @@ function renderOfficialDocHTML(docTitle, b) {
   const docNo = docTitle.includes('INVOIS') ? b.invoiceNo : b.receiptNo;
   const dateFormatted = b.paymentDate ? formatShortDate(b.paymentDate) : formatShortDate(new Date());
 
-  const accommodationTotal = b.nights * 350;
-  const depositAmount = 100;
+  const ratePerNight = b.ratePerNight !== undefined ? parseFloat(b.ratePerNight) : (currentSettings.ratePerNight || 350);
+  const depositAmount = b.securityDeposit !== undefined ? parseFloat(b.securityDeposit) : (currentSettings.securityDeposit !== undefined ? currentSettings.securityDeposit : 100);
+  const accommodationTotal = b.nights * ratePerNight;
   const grandTotal = accommodationTotal + depositAmount;
 
   const paidAmount = b.paidAmount !== undefined && b.paidAmount !== null 
@@ -1809,7 +1895,7 @@ function renderOfficialDocHTML(docTitle, b) {
         </thead>
         <tbody>
           <tr>
-            <td style="padding: 4px 6px;">1. Kadar Penginapan (${b.nights} Malam × RM 350.00)</td>
+            <td style="padding: 4px 6px;">1. Kadar Penginapan (${b.nights} Malam × RM ${ratePerNight.toFixed(2)})</td>
             <td style="text-align: right; font-weight: bold; padding: 4px 6px;">RM ${accommodationTotal.toFixed(2)}</td>
           </tr>
           <tr>
@@ -1833,7 +1919,7 @@ function renderOfficialDocHTML(docTitle, b) {
 
       <!-- NOTA PENTING DIPULANGKAN DEPOSIT -->
       <div style="margin-bottom: 6px; padding: 5px 8px; background: #eff6ff; border: 1px solid #93c5fd; border-radius: 4px; font-size: 9.5px; color: #1e40af; line-height: 1.3;">
-        📌 <strong>NOTA PENTING DEPOSIT:</strong> Bayaran deposit sekuriti (RM 100.00) akan dipulangkan sepenuhnya kepada penyewa selepas check-out sekiranya tiada sebarang kerosakan atau kehilangan pada homestay.
+        📌 <strong>NOTA PENTING DEPOSIT:</strong> Bayaran deposit sekuriti (RM ${depositAmount.toFixed(2)}) akan dipulangkan sepenuhnya kepada penyewa selepas check-out sekiranya tiada sebarang kerosakan atau kehilangan pada homestay.
       </div>
 
       <!-- STATUS & SUMBANGAN -->

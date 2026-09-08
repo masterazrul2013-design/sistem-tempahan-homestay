@@ -123,8 +123,8 @@
         <div class="flex items-center gap-2 text-gold-500 font-bold text-xs">
           <i data-lucide="home" class="w-4 h-4"></i> Homestay Info
         </div>
-        <p class="text-[11px] text-slate-300">Kadar Sewa: <strong class="text-white">RM 350 / malam</strong></p>
-        <p class="text-[11px] text-slate-300">Deposit Sekuriti: <strong class="text-white">RM 100</strong></p>
+        <p class="text-[11px] text-slate-300">Kadar Sewa: <strong id="sidebar-rate-per-night" class="text-white">RM 350 / malam</strong></p>
+        <p class="text-[11px] text-slate-300">Deposit Sekuriti: <strong id="sidebar-security-deposit" class="text-white">RM 100</strong></p>
         <p class="text-[10px] text-slate-400">📍 Baling, Kedah</p>
       </div>
       
@@ -271,6 +271,33 @@
 
       <!-- TAB 2: TAB MAKLUMAT PENYEWA & TEMPAHAN (ADMIN) -->
       <div id="view-penyewa-list" class="hidden space-y-4">
+
+        <!-- ADMIN PRICING & PROMOTION SETTINGS CARD -->
+        <div class="bg-gradient-to-r from-navy-900 via-navy-800 to-navy-900 text-white p-5 rounded-2xl shadow-md border-2 border-gold-500/50 space-y-3">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gold-500/30 pb-2">
+            <h3 class="text-sm font-bold text-gold-500 uppercase tracking-wider flex items-center gap-2">
+              <i data-lucide="tag" class="w-4 h-4"></i> Tetapan Kadar Sewa & Promosi Semasa
+            </h3>
+            <span class="text-[11px] text-slate-300">Set kadar harga yang akan diguna pakai oleh semua pengguna semasa tempahan</span>
+          </div>
+
+          <form onsubmit="handleSettingsUpdateSubmit(event)" class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+            <div>
+              <label class="block text-xs font-semibold text-slate-200 mb-1">Kadar Sewa Semasa / Malam (RM) <span class="text-gold-500">*</span></label>
+              <input type="number" id="setting-rate-per-night" min="1" step="any" required placeholder="350" class="w-full px-3 py-2 bg-navy-900 border border-gold-500/40 rounded-xl text-sm font-bold text-gold-500 focus:ring-2 focus:ring-gold-500 focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-200 mb-1">Deposit Sekuriti Semasa (RM) <span class="text-gold-500">*</span></label>
+              <input type="number" id="setting-security-deposit" min="0" step="any" required placeholder="100" class="w-full px-3 py-2 bg-navy-900 border border-gold-500/40 rounded-xl text-sm font-bold text-emerald-400 focus:ring-2 focus:ring-gold-500 focus:outline-none">
+            </div>
+            <div>
+              <button type="submit" class="w-full bg-gold-500 hover:bg-gold-600 text-navy-900 font-bold py-2 px-4 rounded-xl text-xs shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer">
+                <i data-lucide="save" class="w-4 h-4"></i> Simpan Kadar Harga Semasa
+              </button>
+            </div>
+          </form>
+        </div>
+
         <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
           <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>

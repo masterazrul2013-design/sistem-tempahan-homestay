@@ -20,6 +20,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 const DATA_DIR = path.join(__dirname, 'data');
 const BOOKINGS_FILE = path.join(DATA_DIR, 'bookings.json');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
+const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -164,6 +165,38 @@ app.delete('/api/users/:id', (req, res) => {
   res.json({ success: true, message: 'Pengguna berjaya dipadam!' });
 });
 
+// --- Settings & Pricing Routes ---
+function getSettings() {
+  const defaultSettings = { ratePerNight: 350, securityDeposit: 100 };
+  if (!fs.existsSync(SETTINGS_FILE)) {
+    writeJSON(SETTINGS_FILE, defaultSettings);
+    return defaultSettings;
+  }
+  const s = readJSON(SETTINGS_FILE);
+  if (Array.isArray(s) || !s) return defaultSettings;
+  return {
+    ratePerNight: s.ratePerNight !== undefined ? parseFloat(s.ratePerNight) : 350,
+    securityDeposit: s.securityDeposit !== undefined ? parseFloat(s.securityDeposit) : 100
+  };
+}
+
+app.get('/api/settings', (req, res) => {
+  res.json(getSettings());
+});
+
+app.put('/api/settings', (req, res) => {
+  const { ratePerNight, securityDeposit } = req.body;
+  const current = getSettings();
+  if (ratePerNight !== undefined && !isNaN(parseFloat(ratePerNight))) {
+    current.ratePerNight = parseFloat(ratePerNight);
+  }
+  if (securityDeposit !== undefined && !isNaN(parseFloat(securityDeposit))) {
+    current.securityDeposit = parseFloat(securityDeposit);
+  }
+  writeJSON(SETTINGS_FILE, current);
+  res.json({ success: true, settings: current, message: 'Tetapan kadar harga berjaya dikemaskini!' });
+});
+
 // --- Booking Routes ---
 app.get('/api/bookings', (req, res) => {
   const { userId } = req.query;
@@ -213,8 +246,9 @@ app.post('/api/bookings', (req, res) => {
   const diffTime = Math.abs(dOut - dIn);
   const nights = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 1;
 
-  const ratePerNight = 350;
-  const securityDeposit = 100;
+  const activeSettings = getSettings();
+  const ratePerNight = req.body.ratePerNight ? parseFloat(req.body.ratePerNight) : activeSettings.ratePerNight;
+  const securityDeposit = req.body.securityDeposit !== undefined ? parseFloat(req.body.securityDeposit) : activeSettings.securityDeposit;
   const accommodationTotal = nights * ratePerNight;
   const grandTotal = accommodationTotal + securityDeposit;
 
