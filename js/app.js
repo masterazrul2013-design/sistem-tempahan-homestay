@@ -473,17 +473,13 @@ async function handleSingleLoginSubmit(e) {
         if (currentUser.role === 'admin') switchTab('penyewa-list');
         else switchTab('dashboard');
         return;
-      } else {
-        alert(data.message || 'Log masuk gagal!');
-        return;
       }
     }
-  } catch (err) {
-    console.log('API unavailable, falling back to LocalStorage Auth...');
-  }
+  } catch (err) {}
 
-  // LocalStorage Fallback Auth
-  let localUsers = JSON.parse(localStorage.getItem('sofia_users') || 'null');
+  await fetchUsers();
+
+  let localUsers = usersData;
   if (!localUsers || localUsers.length === 0) {
     localUsers = [...DEFAULT_USERS];
   } else {
@@ -493,13 +489,16 @@ async function handleSingleLoginSubmit(e) {
       }
     });
   }
-  localStorage.setItem('sofia_users', JSON.stringify(localUsers));
 
   const foundUser = localUsers.find(u => {
     const uPhone = (u.phone || '').replace(/\D/g, '');
     const uUser = (u.username || '').toLowerCase();
     const uId = (u.id || '').toLowerCase();
-    const matchesId = (cleanId && uPhone === cleanId) || uUser === id.toLowerCase() || uId === id.toLowerCase();
+    const uIc = (u.ic || '').replace(/\D/g, '');
+    const matchesId = (cleanId.length >= 6 && uPhone === cleanId) || 
+                      (cleanId.length >= 6 && uIc === cleanId) || 
+                      uUser === id.toLowerCase() || 
+                      uId === id.toLowerCase();
     return matchesId && u.password === password;
   });
 
@@ -804,23 +803,41 @@ async function fetchUsers() {
     if (res.ok) {
       usersData = await res.json();
       localStorage.setItem('sofia_users', JSON.stringify(usersData));
-    } else {
-      throw new Error('Users API Not OK');
+      renderUsersTable();
+      return;
     }
-  } catch (err) {
-    let localUsers = JSON.parse(localStorage.getItem('sofia_users') || 'null');
-    if (!localUsers || localUsers.length === 0) {
-      localUsers = [...DEFAULT_USERS];
-    } else {
-      DEFAULT_USERS.forEach(defU => {
-        if (!localUsers.some(u => u.id === defU.id || u.phone === defU.phone)) {
-          localUsers.push(defU);
+  } catch (err) {}
+
+  try {
+    const staticRes = await fetch('./data/users.json');
+    if (staticRes.ok) {
+      const staticUsers = await staticRes.json();
+      let localUsers = JSON.parse(localStorage.getItem('sofia_users') || 'null') || [];
+      const combined = [...staticUsers, ...DEFAULT_USERS];
+      combined.forEach(u => {
+        if (!localUsers.some(l => l.id === u.id || (l.phone && l.phone === u.phone))) {
+          localUsers.push(u);
         }
       });
+      usersData = localUsers;
+      localStorage.setItem('sofia_users', JSON.stringify(usersData));
+      renderUsersTable();
+      return;
     }
-    localStorage.setItem('sofia_users', JSON.stringify(localUsers));
-    usersData = localUsers;
+  } catch (err) {}
+
+  let localUsers = JSON.parse(localStorage.getItem('sofia_users') || 'null');
+  if (!localUsers || localUsers.length === 0) {
+    localUsers = [...DEFAULT_USERS];
+  } else {
+    DEFAULT_USERS.forEach(defU => {
+      if (!localUsers.some(u => u.id === defU.id || u.phone === defU.phone)) {
+        localUsers.push(defU);
+      }
+    });
   }
+  localStorage.setItem('sofia_users', JSON.stringify(localUsers));
+  usersData = localUsers;
   renderUsersTable();
 }
 
