@@ -12,6 +12,10 @@ let activePendingUploadBookingId = null;
 let activeReceiptBookingId = null;
 let activeReceiptType = 'RESIT PEMBAYARAN';
 
+// Persistent Tombstone tracking so deleted bookings and users never resurrect on any device
+let deletedBookingIds = JSON.parse(localStorage.getItem('sofia_deleted_bookings') || '[]');
+let deletedUserIds = JSON.parse(localStorage.getItem('sofia_deleted_users') || '[]');
+
 // Default Fallback Admin & Pre-seeded User Accounts
 const DEFAULT_USERS = [
   { id: 'USR-ADMIN', username: 'admin', phone: '0192298176', name: 'Pengurusan SofiaRizqi', role: 'admin', password: '1234', createdAt: '2026-08-25T00:00:00.000Z' },
@@ -121,6 +125,8 @@ async function fetchCloudSyncEvents() {
           const payload = JSON.parse(item.message);
           if (payload.type === 'NEW_BOOKING' && payload.booking) {
             const b = payload.booking;
+            // Ignore if deleted
+            if (deletedBookingIds.includes(b.id)) return;
             const idx = bookingsData.findIndex(x => x.id === b.id);
             if (idx === -1) {
               bookingsData.push(b);
@@ -134,7 +140,16 @@ async function fetchCloudSyncEvents() {
               }
               hasChanges = true;
             }
+          } else if (payload.type === 'DELETE_BOOKING' && payload.bookingId) {
+            if (!deletedBookingIds.includes(payload.bookingId)) {
+              deletedBookingIds.push(payload.bookingId);
+              localStorage.setItem('sofia_deleted_bookings', JSON.stringify(deletedBookingIds));
+            }
+            const beforeLen = bookingsData.length;
+            bookingsData = bookingsData.filter(x => x.id !== payload.bookingId);
+            if (bookingsData.length !== beforeLen) hasChanges = true;
           } else if (payload.type === 'UPDATE_STATUS' && payload.bookingId) {
+            if (deletedBookingIds.includes(payload.bookingId)) return;
             const b = bookingsData.find(x => x.id === payload.bookingId);
             if (b && b.status !== payload.status) {
               b.status = payload.status;
@@ -146,14 +161,24 @@ async function fetchCloudSyncEvents() {
             }
           } else if (payload.type === 'SYNC_BOOKINGS' && Array.isArray(payload.bookings)) {
             payload.bookings.forEach(b => {
+              if (deletedBookingIds.includes(b.id)) return;
               const idx = bookingsData.findIndex(x => x.id === b.id);
               if (idx === -1) {
                 bookingsData.push(b);
                 hasChanges = true;
               }
             });
+          } else if (payload.type === 'DELETE_USER' && payload.userId) {
+            if (!deletedUserIds.includes(payload.userId)) {
+              deletedUserIds.push(payload.userId);
+              localStorage.setItem('sofia_deleted_users', JSON.stringify(deletedUserIds));
+            }
+            usersData = usersData.filter(x => x.id !== payload.userId);
+            localStorage.setItem('sofia_users', JSON.stringify(usersData));
+            renderUsersTable();
           } else if (payload.type === 'REGISTER_USER' && payload.user) {
             const u = payload.user;
+            if (deletedUserIds.includes(u.id)) return;
             const idx = usersData.findIndex(x => x.id === u.id || (u.phone && x.phone === u.phone));
             if (idx === -1) {
               usersData.push(u);
@@ -942,24 +967,24 @@ async function deleteUser(userId) {
 
   if (!confirm(`Adakah anda pasti mahu MEMADAM akaun pengguna ${target.name} (${target.phone})?`)) return;
 
-  try {
-    const res = await fetch(`${API_BASE}/api/users/${userId}`, { method: 'DELETE' });
-    if (res.ok) {
-      alert(`🎉 Akaun pengguna ${target.name} telah dipadam!`);
-      await fetchUsers();
-      return;
-    }
-  } catch (err) {
-    console.log('API unavailable, deleting user in LocalStorage...');
+  // Add to persistent tombstone list so it never resurrects
+  if (!deletedUserIds.includes(userId)) {
+    deletedUserIds.push(userId);
+    localStorage.setItem('sofia_deleted_users', JSON.stringify(deletedUserIds));
   }
 
-  let localUsers = JSON.parse(localStorage.getItem('sofia_users') || 'null');
-  if (localUsers) {
-    localUsers = localUsers.filter(u => u.id !== userId);
-    localStorage.setItem('sofia_users', JSON.stringify(localUsers));
-  }
+  usersData = usersData.filter(u => u.id !== userId);
+  localStorage.setItem('sofia_users', JSON.stringify(usersData));
+
+  // Broadcast deletion across all devices via cloud sync
+  await broadcastSyncEvent({ type: 'DELETE_USER', userId: userId });
+
+  try {
+    await fetch(`${API_BASE}/api/users/${userId}`, { method: 'DELETE' });
+  } catch (err) {}
+
   alert(`🎉 Akaun pengguna ${target.name} telah dipadam!`);
-  fetchUsers();
+  renderUsersTable();
 }
 
 // Navigation Tabs Switcher
@@ -1042,6 +1067,8 @@ function syncGuestsToUsers() {
   let updated = false;
   if (bookingsData && bookingsData.length > 0) {
     bookingsData.forEach(b => {
+      if (deletedBookingIds.includes(b.id)) return;
+      if (b.userId && deletedUserIds.includes(b.userId)) return;
       const bPhone = (b.guestPhone || '').replace(/\D/g, '');
       if (bPhone.length >= 6) {
         const exists = usersData.some(u => {
@@ -1049,22 +1076,26 @@ function syncGuestsToUsers() {
           return uPhone === bPhone || (b.userId && b.userId !== 'USR-GUEST' && u.id === b.userId);
         });
         if (!exists) {
-          usersData.push({
-            id: b.userId && b.userId !== 'USR-GUEST' ? b.userId : `USR-${Math.floor(1000 + Math.random() * 9000)}`,
-            name: b.guestName || 'Tetamu',
-            phone: b.guestPhone || '',
-            ic: b.guestPhone || '-',
-            address: b.guestAddress || '-',
-            role: 'user',
-            password: '1234',
-            createdAt: b.createdAt || new Date().toISOString()
-          });
-          updated = true;
+          const newUserId = b.userId && b.userId !== 'USR-GUEST' ? b.userId : `USR-${Math.floor(1000 + Math.random() * 9000)}`;
+          if (!deletedUserIds.includes(newUserId)) {
+            usersData.push({
+              id: newUserId,
+              name: b.guestName || 'Tetamu',
+              phone: b.guestPhone || '',
+              ic: b.guestPhone || '-',
+              address: b.guestAddress || '-',
+              role: 'user',
+              password: '1234',
+              createdAt: b.createdAt || new Date().toISOString()
+            });
+            updated = true;
+          }
         }
       }
     });
   }
   if (updated) {
+    usersData = usersData.filter(u => !deletedUserIds.includes(u.id));
     localStorage.setItem('sofia_users', JSON.stringify(usersData));
   }
 }
@@ -1078,6 +1109,7 @@ async function fetchUsers() {
       const apiUsers = await res.json();
       if (apiUsers && apiUsers.length > 0) {
         apiUsers.forEach(u => {
+          if (deletedUserIds.includes(u.id)) return;
           const idx = usersData.findIndex(x => x.id === u.id || (x.phone && x.phone === u.phone));
           if (idx === -1) usersData.push(u);
           else usersData[idx] = { ...usersData[idx], ...u };
@@ -1093,6 +1125,7 @@ async function fetchUsers() {
       if (staticRes.ok) {
         const staticUsers = await staticRes.json();
         staticUsers.forEach(u => {
+          if (deletedUserIds.includes(u.id)) return;
           if (!usersData.some(x => x.id === u.id || x.phone === u.phone)) {
             usersData.push(u);
           }
@@ -1107,6 +1140,7 @@ async function fetchUsers() {
   let localUsers = JSON.parse(localStorage.getItem('sofia_users') || 'null');
   if (localUsers && Array.isArray(localUsers)) {
     localUsers.forEach(lu => {
+      if (deletedUserIds.includes(lu.id)) return;
       const idx = usersData.findIndex(u => u.id === lu.id || (u.phone && u.phone === lu.phone));
       if (idx !== -1) {
         usersData[idx] = { ...usersData[idx], ...lu };
@@ -1116,9 +1150,9 @@ async function fetchUsers() {
     });
   }
 
-  // Step 4: Always ensure DEFAULT_USERS present
+  // Step 4: Always ensure DEFAULT_USERS present (unless explicitly deleted!)
   DEFAULT_USERS.forEach(defU => {
-    if (!usersData.some(u => u.id === defU.id || u.phone === defU.phone)) {
+    if (!deletedUserIds.includes(defU.id) && !usersData.some(u => u.id === defU.id || u.phone === defU.phone)) {
       usersData.push(defU);
     }
   });
@@ -1129,7 +1163,8 @@ async function fetchUsers() {
   // Step 5: Poll cloud sync to get users broadcast by other devices
   await fetchCloudSyncEvents();
 
-  // Step 6: Save merged result back to localStorage
+  // Step 6: Final purge of any deleted users
+  usersData = usersData.filter(u => !deletedUserIds.includes(u.id));
   localStorage.setItem('sofia_users', JSON.stringify(usersData));
 
   // Step 7: If Admin, broadcast all users so other devices can sync
@@ -1219,17 +1254,21 @@ async function fetchBookings() {
 
   if (!bookingsData) bookingsData = [];
 
-  // Guarantee pre-seeded bookings are always present
+  // Filter out any deleted bookings
+  bookingsData = bookingsData.filter(b => !deletedBookingIds.includes(b.id));
+
+  // Guarantee pre-seeded bookings are present unless explicitly deleted
   DEFAULT_BOOKINGS.forEach(defB => {
-    if (!bookingsData.some(b => b.id === defB.id)) {
+    if (!deletedBookingIds.includes(defB.id) && !bookingsData.some(b => b.id === defB.id)) {
       bookingsData.push(defB);
     }
   });
 
-  // Merge from localStorage — preserve local fields like proofImage that cloud doesn't carry
+  // Merge from localStorage — skip any deleted bookings
   let localBookings = JSON.parse(localStorage.getItem('sofia_bookings') || 'null');
   if (localBookings && Array.isArray(localBookings)) {
     localBookings.forEach(lb => {
+      if (deletedBookingIds.includes(lb.id)) return;
       const idx = bookingsData.findIndex(b => b.id === lb.id);
       if (idx !== -1) {
         // Preserve important local-only fields that cloud sync doesn't carry
@@ -1247,6 +1286,9 @@ async function fetchBookings() {
 
   // Poll cloud sync events
   await fetchCloudSyncEvents();
+
+  // Final safety filter
+  bookingsData = bookingsData.filter(b => !deletedBookingIds.includes(b.id));
 
   bookingsData.forEach(b => {
     if (!b.approvedByAdmin && b.status !== 'BATAL' && b.status !== 'DITOLAK') {
@@ -2450,22 +2492,22 @@ function copyWhatsAppText() {
 async function deleteBooking(bookingId) {
   if (!confirm(`Adakah anda pasti mahu MEMADAM tempahan ${bookingId} dan MENGOSONGKAN tarikh tersebut?`)) return;
 
-  try {
-    const res = await fetch(`${API_BASE}/api/bookings/${bookingId}`, { method: 'DELETE' });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.success) {
-        alert(`🎉 Tempahan ${bookingId} telah dipadam dan tarikh telah dikosongkan!`);
-        await fetchBookings();
-        return;
-      }
-    }
-  } catch (err) {
-    console.log('API unavailable, deleting booking in LocalStorage...');
+  // Add to persistent tombstone list so it never resurrects
+  if (!deletedBookingIds.includes(bookingId)) {
+    deletedBookingIds.push(bookingId);
+    localStorage.setItem('sofia_deleted_bookings', JSON.stringify(deletedBookingIds));
   }
 
   bookingsData = bookingsData.filter(b => b.id !== bookingId);
   localStorage.setItem('sofia_bookings', JSON.stringify(bookingsData));
+
+  // Broadcast deletion across all devices via cloud sync
+  await broadcastSyncEvent({ type: 'DELETE_BOOKING', bookingId: bookingId });
+
+  try {
+    await fetch(`${API_BASE}/api/bookings/${bookingId}`, { method: 'DELETE' });
+  } catch (err) {}
+
   alert(`🎉 Tempahan ${bookingId} telah dipadam dan tarikh telah dikosongkan!`);
   updateStatsOverview();
   updateCalendarEvents();
