@@ -174,6 +174,17 @@ async function fetchCloudSyncEvents() {
               localStorage.setItem('sofia_discounts', JSON.stringify(discountsData));
               renderDiscountsTable();
             }
+          } else if (payload.type === 'PROOF_UPLOADED' && payload.bookingId) {
+            const b = bookingsData.find(x => x.id === payload.bookingId);
+            if (b) {
+              if (payload.proofImage) b.proofImage = payload.proofImage;
+              if (payload.paidAmount) b.paidAmount = payload.paidAmount;
+              if (payload.depositReceived !== undefined) b.depositReceived = payload.depositReceived;
+              if (payload.fullPaymentReceived !== undefined) b.fullPaymentReceived = payload.fullPaymentReceived;
+              if (payload.balancePayment !== undefined) b.balancePayment = payload.balancePayment;
+              hasChanges = true;
+              console.log('✅ Bukti bayaran diterima dari sync untuk:', payload.bookingId);
+            }
           }
         }
       } catch (e) {}
@@ -1706,24 +1717,62 @@ async function handleUploadProofSubmit(e) {
       }
     }
   } catch (err) {
-    console.log('API unavailable, handling upload in LocalStorage with actual image Data URL...');
+    console.log('API unavailable, uploading image to cloud...');
   }
+
+  // --- CLOUD IMAGE UPLOAD (Telegraph - no API key needed) ---
+  let cloudImageUrl = '';
+  try {
+    const uploadFormData = new FormData();
+    uploadFormData.append('file', fileInput.files[0], fileInput.files[0].name);
+    const tgRes = await fetch('https://telegra.ph/upload', {
+      method: 'POST',
+      body: uploadFormData
+    });
+    if (tgRes.ok) {
+      const tgData = await tgRes.json();
+      if (Array.isArray(tgData) && tgData[0] && tgData[0].src) {
+        cloudImageUrl = `https://telegra.ph${tgData[0].src}`;
+        console.log('✅ Gambar resit berjaya dimuat naik ke cloud:', cloudImageUrl);
+      }
+    }
+  } catch (err) {
+    console.log('Telegraph upload failed, using local only:', err);
+  }
+
+  const finalProofUrl = cloudImageUrl || imageDataUrl;
 
   const booking = bookingsData.find(b => b.id === bookingId);
   if (booking) {
-    booking.proofImage = imageDataUrl || booking.proofImage;
+    booking.proofImage = finalProofUrl;
     booking.paidAmount = userPaidAmount;
-    booking.accommodationTotal = booking.nights * 350;
-    booking.securityDeposit = 100;
-    booking.grandTotal = booking.accommodationTotal + 100;
+    booking.accommodationTotal = booking.nights * (booking.ratePerNight || 350);
+    booking.securityDeposit = currentSettings.securityDeposit || 100;
+    const discAmt = parseFloat(booking.discountAmount) || 0;
+    booking.grandTotal = Math.max(0, booking.accommodationTotal + booking.securityDeposit - discAmt);
     booking.balancePayment = Math.max(0, booking.grandTotal - userPaidAmount);
-    booking.depositReceived = userPaidAmount >= 100;
+    booking.depositReceived = userPaidAmount >= booking.securityDeposit;
     booking.fullPaymentReceived = booking.balancePayment <= 0;
     localStorage.setItem('sofia_bookings', JSON.stringify(bookingsData));
+
+    // Broadcast to ntfy.sh so Admin sees the image cross-device
+    await broadcastSyncEvent({
+      type: 'PROOF_UPLOADED',
+      bookingId: bookingId,
+      proofImage: cloudImageUrl || '',
+      paidAmount: userPaidAmount,
+      depositReceived: booking.depositReceived,
+      fullPaymentReceived: booking.fullPaymentReceived,
+      balancePayment: booking.balancePayment
+    });
   }
+
   activePendingUploadBookingId = null;
   closeModal('modal-payment');
-  alert('🎉 Bukti pembayaran & jumlah bayaran (RM ' + userPaidAmount.toFixed(2) + ') berjaya dikemaskini!');
+  const uploadMsg = cloudImageUrl
+    ? '🎉 Bukti pembayaran berjaya dimuat naik! Admin dapat lihat gambar resit anda.'
+    : '✅ Jumlah bayaran (RM ' + userPaidAmount.toFixed(2) + ') dikemaskini. (Gambar hanya tersedia di peranti ini)';
+  alert(uploadMsg);
   fetchBookings();
   switchTab('my-bookings');
 }
@@ -1872,7 +1921,7 @@ function renderMyBookings() {
                 <span class="bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded text-[10px]">Belum Naik Resit</span>
               </div>
               <p>📅 <strong>Tarikh:</strong> ${formatMalayDate(b.checkInDate)} - ${formatMalayDate(b.checkOutDate)}</p>
-              <p>💰 <strong>Jumlah Perlu Dijelaskan:</strong> RM ${( (b.nights * 350) + 100 ).toFixed(2)}</p>
+              <p>💰 <strong>Jumlah Perlu Dijelaskan:</strong> RM ${( b.grandTotal !== undefined ? b.grandTotal : (b.nights * (b.ratePerNight || 350)) + (b.securityDeposit || 100) - (parseFloat(b.discountAmount) || 0) ).toFixed(2)}${b.discountAmount > 0 ? ` <span style="color:#059669;font-size:10px">(Diskaun -RM${parseFloat(b.discountAmount).toFixed(2)} digunapakai)</span>` : ''}</p>
               <div class="flex gap-2 pt-1">
                 <button onclick="openPaymentModal('${b.id}', '${b.paymentMethod}')" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-lg text-xs flex items-center justify-center gap-1 shadow">
                   <i data-lucide="upload" class="w-3.5 h-3.5"></i> Muat Naik Resit
@@ -1894,10 +1943,12 @@ function renderMyBookings() {
       statusBadge = `<span class="bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full text-xs font-bold">🎉 DISAHKAN</span>`;
     }
 
-    const accTotal = b.nights * 350;
-    const grandTotal = accTotal + 100;
-    const paid = b.paidAmount !== undefined ? b.paidAmount : (b.depositReceived ? 100 : 0);
-    const balance = Math.max(0, grandTotal - paid);
+    const disc = parseFloat(b.discountAmount) || 0;
+    const accTotal = b.nights * (b.ratePerNight || 350);
+    const secDep = b.securityDeposit || 100;
+    const grandTotal = b.grandTotal !== undefined ? b.grandTotal : Math.max(0, accTotal + secDep - disc);
+    const paid = b.paidAmount !== undefined ? b.paidAmount : (b.depositReceived ? secDep : 0);
+    const balance = b.balancePayment !== undefined ? b.balancePayment : Math.max(0, grandTotal - paid);
 
     return `
       <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3 relative hover-card">
@@ -1913,6 +1964,7 @@ function renderMyBookings() {
           <p>📅 <strong>Check-in:</strong> ${formatMalayDate(b.checkInDate)} (2 PM)</p>
           <p>📅 <strong>Check-out:</strong> ${formatMalayDate(b.checkOutDate)} (12 PM)</p>
           <p>👨👩👧👦 <strong>Tetamu:</strong> ${b.guestCount}</p>
+          ${disc > 0 ? `<p>🏷️ <strong>Diskaun:</strong> <span style="color:#059669">-RM ${disc.toFixed(2)} (${b.discountCode || 'Kod Promo'})</span></p>` : ''}
           <p>💰 <strong>Jumlah Keseluruhan:</strong> RM ${grandTotal.toFixed(2)} | Dibayar: RM ${paid.toFixed(2)} | <strong>Baki: RM ${balance.toFixed(2)}</strong></p>
         </div>
 
