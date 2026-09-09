@@ -156,8 +156,12 @@ async function fetchCloudSyncEvents() {
             const idx = usersData.findIndex(x => x.id === u.id || (u.phone && x.phone === u.phone));
             if (idx === -1) {
               usersData.push(u);
-              localStorage.setItem('sofia_users', JSON.stringify(usersData));
+            } else {
+              // Update existing user with latest data
+              usersData[idx] = { ...usersData[idx], ...u };
             }
+            localStorage.setItem('sofia_users', JSON.stringify(usersData));
+            hasChanges = true;
           } else if (payload.type === 'NEW_DISCOUNT' && payload.discount) {
             const d = payload.discount;
             const exists = discountsData.find(x => x.code === d.code);
@@ -519,10 +523,17 @@ document.addEventListener('DOMContentLoaded', () => {
   fetchBookings();
   fetchUsers();
 
-  // Auto-sync across devices every 15 seconds
+  // Auto-sync bookings across devices every 15 seconds
   setInterval(() => {
     fetchCloudSyncEvents();
   }, 15000);
+
+  // Auto-broadcast all users every 5 minutes (Admin only) for cross-device user sync
+  setInterval(() => {
+    if (currentUser && currentUser.role === 'admin') {
+      broadcastAllUsers();
+    }
+  }, 300000);
 });
 
 // Left Sidebar Navigation Toggle Hide / Show
@@ -718,8 +729,13 @@ async function handleSingleLoginSubmit(e) {
     localStorage.setItem('sofia_user', JSON.stringify(currentUser));
     updateUIForAuth();
     alert(`Selamat Datang, ${currentUser.name}! (${currentUser.role === 'admin' ? 'Pengurusan Admin' : 'Penyewa'})`);
-    if (currentUser.role === 'admin') switchTab('penyewa-list');
-    else switchTab('dashboard');
+    if (currentUser.role === 'admin') {
+      switchTab('penyewa-list');
+      // Broadcast all users so other devices sync on admin login
+      setTimeout(() => broadcastAllUsers(), 2000);
+    } else {
+      switchTab('dashboard');
+    }
   } else {
     alert('Log masuk gagal! Sila semak No. Telefon / ID dan kata laluan anda.');
   }
@@ -1007,45 +1023,82 @@ function switchTab(tabId) {
   safeRenderIcons();
 }
 
+// Broadcast all users to ntfy.sh for cross-device sync (sent one-by-one to stay within size limit)
+async function broadcastAllUsers() {
+  const nonAdminUsers = usersData.filter(u => u.role !== 'admin');
+  for (const u of nonAdminUsers) {
+    await broadcastSyncEvent({ type: 'REGISTER_USER', user: u });
+  }
+  if (nonAdminUsers.length > 0) {
+    console.log(`✅ Broadcast ${nonAdminUsers.length} pengguna ke cloud sync.`);
+  }
+}
+
 // Fetch Users List
 async function fetchUsers() {
+  // Step 1: Try Express API (laptop only)
   try {
     const res = await fetch(`${API_BASE}/api/users`);
     if (res.ok) {
-      usersData = await res.json();
+      const apiUsers = await res.json();
+      if (apiUsers && apiUsers.length > 0) {
+        apiUsers.forEach(u => {
+          const idx = usersData.findIndex(x => x.id === u.id || (x.phone && x.phone === u.phone));
+          if (idx === -1) usersData.push(u);
+          else usersData[idx] = { ...usersData[idx], ...u };
+        });
+      }
     }
   } catch (err) {}
 
+  // Step 2: Try static data/users.json from GitHub repo
   if (!usersData || usersData.length === 0) {
     try {
       const staticRes = await fetch('./data/users.json');
       if (staticRes.ok) {
-        usersData = await staticRes.json();
+        const staticUsers = await staticRes.json();
+        staticUsers.forEach(u => {
+          if (!usersData.some(x => x.id === u.id || x.phone === u.phone)) {
+            usersData.push(u);
+          }
+        });
       }
     } catch (err) {}
   }
 
   if (!usersData) usersData = [];
 
+  // Step 3: Merge from localStorage (this device's saved data)
   let localUsers = JSON.parse(localStorage.getItem('sofia_users') || 'null');
   if (localUsers && Array.isArray(localUsers)) {
     localUsers.forEach(lu => {
       const idx = usersData.findIndex(u => u.id === lu.id || (u.phone && u.phone === lu.phone));
       if (idx !== -1) {
-        usersData[idx] = lu;
+        usersData[idx] = { ...usersData[idx], ...lu };
       } else {
         usersData.push(lu);
       }
     });
   }
 
+  // Step 4: Always ensure DEFAULT_USERS present
   DEFAULT_USERS.forEach(defU => {
     if (!usersData.some(u => u.id === defU.id || u.phone === defU.phone)) {
       usersData.push(defU);
     }
   });
 
+  // Step 5: Poll cloud sync to get users broadcast by other devices
+  await fetchCloudSyncEvents();
+
+  // Step 6: Save merged result back to localStorage
   localStorage.setItem('sofia_users', JSON.stringify(usersData));
+
+  // Step 7: If Admin, broadcast all users so other devices can sync
+  if (currentUser && currentUser.role === 'admin') {
+    broadcastAllUsers();
+  }
+
   renderUsersTable();
 }
 
