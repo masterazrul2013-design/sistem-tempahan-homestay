@@ -18,5 +18,16 @@
     "password": "1234",
     "address": "ALOR SETAR",
     "createdAt": "2026-08-25T00:00:00.000Z"
+  },
+  {
+    "id": "USR-9713",
+    "role": "user",
+    "name": "IMAN NUR AMANI",
+    "phone": "0149176121",
+    "ic": "0149176121",
+    "username": "0149176121",
+    "password": "1234",
+    "address": "SP",
+    "createdAt": "2026-09-09T00:00:00.000Z"
   }
 ]

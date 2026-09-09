@@ -15,7 +15,8 @@ let activeReceiptType = 'RESIT PEMBAYARAN';
 // Default Fallback Admin & Pre-seeded User Accounts
 const DEFAULT_USERS = [
   { id: 'USR-ADMIN', username: 'admin', phone: '0192298176', name: 'Pengurusan SofiaRizqi', role: 'admin', password: '1234', createdAt: '2026-08-25T00:00:00.000Z' },
-  { id: 'USR-2580', username: '0194218635', phone: '0194218635', ic: '810316025699', name: 'MOHD AZRULNIZAM', role: 'user', password: '1234', address: 'ALOR SETAR', createdAt: '2026-08-25T00:00:00.000Z' }
+  { id: 'USR-2580', username: '0194218635', phone: '0194218635', ic: '810316025699', name: 'MOHD AZRULNIZAM', role: 'user', password: '1234', address: 'ALOR SETAR', createdAt: '2026-08-25T00:00:00.000Z' },
+  { id: 'USR-9713', username: '0149176121', phone: '0149176121', ic: '0149176121', name: 'IMAN NUR AMANI', role: 'user', password: '1234', address: 'SP', createdAt: '2026-09-09T00:00:00.000Z' }
 ];
 
 // Default Fallback Bookings (Guaranteed to be present across all devices and platforms)
@@ -761,6 +762,7 @@ async function handleSingleRegisterSubmit(e) {
         currentUser = data.user;
         localStorage.setItem('sofia_user', JSON.stringify(currentUser));
         updateUIForAuth();
+        await broadcastSyncEvent({ type: 'REGISTER_USER', user: data.user });
         await fetchUsers();
         alert('Pendaftaran Berjaya! Akaun anda telah didaftarkan.');
         switchTab('dashboard');
@@ -778,10 +780,10 @@ async function handleSingleRegisterSubmit(e) {
     id: `USR-${Math.floor(1000 + Math.random() * 9000)}`,
     name,
     phone,
-    ic,
+    ic: ic || phone,
     address,
     password,
-    role: 'penyewa',
+    role: 'user',
     createdAt: new Date().toISOString()
   };
 
@@ -791,6 +793,7 @@ async function handleSingleRegisterSubmit(e) {
   currentUser = newUser;
   localStorage.setItem('sofia_user', JSON.stringify(currentUser));
   updateUIForAuth();
+  await broadcastSyncEvent({ type: 'REGISTER_USER', user: newUser });
   fetchUsers();
   alert('Pendaftaran Berjaya! Akaun anda telah didaftarkan.');
   switchTab('dashboard');
@@ -1034,6 +1037,38 @@ async function broadcastAllUsers() {
   }
 }
 
+// Helper to automatically extract and populate any guest from bookings into usersData
+function syncGuestsToUsers() {
+  let updated = false;
+  if (bookingsData && bookingsData.length > 0) {
+    bookingsData.forEach(b => {
+      const bPhone = (b.guestPhone || '').replace(/\D/g, '');
+      if (bPhone.length >= 6) {
+        const exists = usersData.some(u => {
+          const uPhone = (u.phone || '').replace(/\D/g, '');
+          return uPhone === bPhone || (b.userId && b.userId !== 'USR-GUEST' && u.id === b.userId);
+        });
+        if (!exists) {
+          usersData.push({
+            id: b.userId && b.userId !== 'USR-GUEST' ? b.userId : `USR-${Math.floor(1000 + Math.random() * 9000)}`,
+            name: b.guestName || 'Tetamu',
+            phone: b.guestPhone || '',
+            ic: b.guestPhone || '-',
+            address: b.guestAddress || '-',
+            role: 'user',
+            password: '1234',
+            createdAt: b.createdAt || new Date().toISOString()
+          });
+          updated = true;
+        }
+      }
+    });
+  }
+  if (updated) {
+    localStorage.setItem('sofia_users', JSON.stringify(usersData));
+  }
+}
+
 // Fetch Users List
 async function fetchUsers() {
   // Step 1: Try Express API (laptop only)
@@ -1087,6 +1122,9 @@ async function fetchUsers() {
       usersData.push(defU);
     }
   });
+
+  // Step 4b: Auto-sync any guest from bookings into usersData
+  syncGuestsToUsers();
 
   // Step 5: Poll cloud sync to get users broadcast by other devices
   await fetchCloudSyncEvents();
@@ -1234,6 +1272,8 @@ async function fetchBookings() {
   updateCalendarEvents();
   renderBookingsTable();
   renderMyBookings();
+  syncGuestsToUsers();
+  renderUsersTable();
 }
 
 function updateStatsOverview() {
