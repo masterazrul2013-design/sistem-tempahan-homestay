@@ -1274,6 +1274,54 @@ async function fetchBookings() {
   renderMyBookings();
   syncGuestsToUsers();
   renderUsersTable();
+  autoSyncLocalReceiptsToCloud();
+}
+
+// Auto-migrate any locally cached data:image receipts to public cloud URL via ntfy.sh
+async function autoSyncLocalReceiptsToCloud() {
+  let changed = false;
+  for (const b of bookingsData) {
+    if (b.proofImage && b.proofImage.startsWith('data:')) {
+      try {
+        const res = await fetch(b.proofImage);
+        const blob = await res.blob();
+        const ext = blob.type ? (blob.type.split('/')[1] || 'jpg') : 'jpg';
+        const cleanFileName = `${b.id}-resit-${Date.now()}.${ext}`;
+        const ntfyUp = await fetch('https://ntfy.sh/sofia_homestay_receipts_v1', {
+          method: 'POST',
+          headers: {
+            'Filename': cleanFileName,
+            'Title': `Resit ${b.id}`
+          },
+          body: blob
+        });
+        if (ntfyUp.ok) {
+          const data = await ntfyUp.json();
+          if (data && data.attachment && data.attachment.url) {
+            b.proofImage = data.attachment.url;
+            changed = true;
+            await broadcastSyncEvent({
+              type: 'PROOF_UPLOADED',
+              bookingId: b.id,
+              proofImage: data.attachment.url,
+              paidAmount: b.paidAmount,
+              depositReceived: b.depositReceived,
+              fullPaymentReceived: b.fullPaymentReceived,
+              balancePayment: b.balancePayment
+            });
+            console.log(`✅ Auto-migrated receipt for ${b.id} to cloud:`, data.attachment.url);
+          }
+        }
+      } catch (err) {
+        console.log('Auto-migrate error for receipt:', err);
+      }
+    }
+  }
+  if (changed) {
+    localStorage.setItem('sofia_bookings', JSON.stringify(bookingsData));
+    renderBookingsTable();
+    renderMyBookings();
+  }
 }
 
 function updateStatsOverview() {
@@ -2118,9 +2166,16 @@ function renderMyBookings() {
         </div>
 
         <div class="flex items-center justify-between pt-2 border-t border-slate-100">
-          <span class="text-xs text-emerald-600 font-semibold flex items-center gap-1">
-            <i data-lucide="check-circle" class="w-4 h-4"></i> ${b.paymentMethod === 'Tunai' ? 'Bayaran Tunai' : 'Bukti Dimuat Naik'}
-          </span>
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-emerald-600 font-semibold flex items-center gap-1">
+              <i data-lucide="check-circle" class="w-4 h-4"></i> ${b.paymentMethod === 'Tunai' ? 'Bayaran Tunai' : 'Bukti Dimuat Naik'}
+            </span>
+            ${b.paymentMethod !== 'Tunai' ? `
+              <button onclick="openPaymentModal('${b.id}', '${b.paymentMethod}')" class="text-[11px] text-blue-600 hover:text-blue-800 font-bold underline inline-flex items-center gap-0.5 ml-1">
+                <i data-lucide="upload" class="w-3 h-3"></i> Muat Naik Semula
+              </button>
+            ` : ''}
+          </div>
           
           <button onclick="printReceiptDoc('${b.id}')" class="bg-navy-900 hover:bg-navy-800 text-gold-500 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1 shadow">
             <i data-lucide="receipt" class="w-4 h-4"></i> Lihat Resit
@@ -2219,12 +2274,22 @@ function viewProofModal(bookingId) {
               <a href="${proofImgUrl}" target="_blank" class="text-xs text-blue-600 hover:text-blue-800 font-bold underline inline-flex items-center gap-1">
                 <i data-lucide="external-link" class="w-3.5 h-3.5"></i> Buka Gambar Resit Dalam Tab Baharu
               </a>
+              <button onclick="closeModal('modal-proof-view'); openPaymentModal('${booking.id}', '${booking.paymentMethod}')" class="text-[11px] text-slate-500 hover:text-navy-900 font-semibold underline block mx-auto pt-1">
+                Tukar Fail Resit
+              </button>
             </div>
           </div>
         `;
       }
     } else {
-      imgContainer.innerHTML = `<p class="text-xs text-slate-500 py-6">💵 Kaedah Bayaran: <strong>${booking.paymentMethod || 'Tunai'}</strong> (Tiada fail resit dimuat naik).</p>`;
+      imgContainer.innerHTML = `
+        <div class="py-5 text-center space-y-3 bg-slate-50 rounded-xl border border-dashed border-slate-300">
+          <p class="text-xs text-slate-500">💵 Kaedah Bayaran: <strong>${booking.paymentMethod || 'Tunai'}</strong> (Tiada fail resit dimuat naik).</p>
+          <button onclick="closeModal('modal-proof-view'); openPaymentModal('${booking.id}', '${booking.paymentMethod}')" class="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow transition">
+            <i data-lucide="upload-cloud" class="w-4 h-4"></i> Muat Naik / Lampirkan Fail Resit
+          </button>
+        </div>
+      `;
     }
   }
 
