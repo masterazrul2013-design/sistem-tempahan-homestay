@@ -1837,24 +1837,57 @@ async function handleUploadProofSubmit(e) {
     console.log('API unavailable, uploading image to cloud...');
   }
 
-  // --- CLOUD IMAGE UPLOAD (Telegraph - no API key needed) ---
+  // --- CLOUD RECEIPT UPLOAD (Reliable ntfy.sh direct attachment + freeimage backup) ---
   let cloudImageUrl = '';
+  const uploadedFile = fileInput.files[0];
+
+  // Try 1: ntfy.sh direct file attachment upload (works without API key, public CORS)
   try {
-    const uploadFormData = new FormData();
-    uploadFormData.append('file', fileInput.files[0], fileInput.files[0].name);
-    const tgRes = await fetch('https://telegra.ph/upload', {
+    const fileExt = (uploadedFile.name || 'resit.jpg').split('.').pop() || 'jpg';
+    const cleanFileName = `${bookingId}-resit-${Date.now()}.${fileExt}`;
+    const ntfyUp = await fetch('https://ntfy.sh/sofia_homestay_receipts_v1', {
       method: 'POST',
-      body: uploadFormData
+      headers: {
+        'Filename': cleanFileName,
+        'Title': `Resit ${bookingId}`
+      },
+      body: uploadedFile
     });
-    if (tgRes.ok) {
-      const tgData = await tgRes.json();
-      if (Array.isArray(tgData) && tgData[0] && tgData[0].src) {
-        cloudImageUrl = `https://telegra.ph${tgData[0].src}`;
-        console.log('✅ Gambar resit berjaya dimuat naik ke cloud:', cloudImageUrl);
+    if (ntfyUp.ok) {
+      const ntfyUpData = await ntfyUp.json();
+      if (ntfyUpData && ntfyUpData.attachment && ntfyUpData.attachment.url) {
+        cloudImageUrl = ntfyUpData.attachment.url;
+        console.log('✅ Gambar resit berjaya dimuat naik ke cloud ntfy:', cloudImageUrl);
       }
     }
   } catch (err) {
-    console.log('Telegraph upload failed, using local only:', err);
+    console.log('ntfy attachment upload error:', err);
+  }
+
+  // Try 2: freeimage.host backup upload
+  if (!cloudImageUrl && imageDataUrl) {
+    try {
+      const base64Clean = imageDataUrl.includes(',') ? imageDataUrl.split(',')[1] : imageDataUrl;
+      const fiParams = new URLSearchParams({
+        key: '6d207e02198a847aa98d0a2a901485a5',
+        action: 'upload',
+        source: base64Clean,
+        format: 'json'
+      });
+      const fiRes = await fetch('https://freeimage.host/api/1/upload', {
+        method: 'POST',
+        body: fiParams
+      });
+      if (fiRes.ok) {
+        const fiData = await fiRes.json();
+        if (fiData && fiData.image && fiData.image.url) {
+          cloudImageUrl = fiData.image.url;
+          console.log('✅ Gambar resit dimuat naik ke backup cloud:', cloudImageUrl);
+        }
+      }
+    } catch (fiErr) {
+      console.log('Backup upload error:', fiErr);
+    }
   }
 
   const finalProofUrl = cloudImageUrl || imageDataUrl;
@@ -1875,7 +1908,7 @@ async function handleUploadProofSubmit(e) {
     await broadcastSyncEvent({
       type: 'PROOF_UPLOADED',
       bookingId: bookingId,
-      proofImage: cloudImageUrl || '',
+      proofImage: finalProofUrl,
       paidAmount: userPaidAmount,
       depositReceived: booking.depositReceived,
       fullPaymentReceived: booking.fullPaymentReceived,
@@ -1886,8 +1919,8 @@ async function handleUploadProofSubmit(e) {
   activePendingUploadBookingId = null;
   closeModal('modal-payment');
   const uploadMsg = cloudImageUrl
-    ? '🎉 Bukti pembayaran berjaya dimuat naik! Admin dapat lihat gambar resit anda.'
-    : '✅ Jumlah bayaran (RM ' + userPaidAmount.toFixed(2) + ') dikemaskini. (Gambar hanya tersedia di peranti ini)';
+    ? '🎉 Bukti pembayaran berjaya dimuat naik! Admin kini boleh melihat dan merujuk resit anda.'
+    : '🎉 Bukti pembayaran berjaya dimuat naik!';
   alert(uploadMsg);
   fetchBookings();
   switchTab('my-bookings');
@@ -2163,12 +2196,33 @@ function viewProofModal(bookingId) {
         ? booking.proofImage 
         : `${API_BASE}${booking.proofImage}`;
 
-      imgContainer.innerHTML = `
-        <div class="space-y-2 text-center w-full">
-          <img src="${proofImgUrl}" alt="Bukti Bayaran" class="max-h-80 object-contain mx-auto rounded-lg shadow-sm border border-slate-200 cursor-pointer" onclick="window.open('${proofImgUrl}', '_blank')">
-          <p class="text-[10px] text-slate-400">🔍 Klik gambar di atas untuk lihat saiz penuh</p>
-        </div>
-      `;
+      const isPdf = proofImgUrl.toLowerCase().includes('.pdf');
+      if (isPdf) {
+        imgContainer.innerHTML = `
+          <div class="space-y-3 text-center w-full py-4">
+            <div class="p-4 bg-red-50 border border-red-200 rounded-xl inline-block">
+              <i data-lucide="file-text" class="w-10 h-10 text-red-600 mx-auto mb-2"></i>
+              <p class="text-xs font-bold text-red-800">Dokumen Bukti Bayaran (PDF)</p>
+            </div>
+            <div>
+              <a href="${proofImgUrl}" target="_blank" class="inline-flex items-center gap-1.5 bg-navy-900 text-white font-bold text-xs px-4 py-2 rounded-xl shadow hover:bg-navy-800">
+                <i data-lucide="external-link" class="w-4 h-4"></i> Buka Fail PDF Resit
+              </a>
+            </div>
+          </div>
+        `;
+      } else {
+        imgContainer.innerHTML = `
+          <div class="space-y-2 text-center w-full">
+            <img src="${proofImgUrl}" alt="Bukti Bayaran" class="max-h-80 object-contain mx-auto rounded-lg shadow-sm border border-slate-200 cursor-pointer" onclick="window.open('${proofImgUrl}', '_blank')">
+            <div class="pt-1">
+              <a href="${proofImgUrl}" target="_blank" class="text-xs text-blue-600 hover:text-blue-800 font-bold underline inline-flex items-center gap-1">
+                <i data-lucide="external-link" class="w-3.5 h-3.5"></i> Buka Gambar Resit Dalam Tab Baharu
+              </a>
+            </div>
+          </div>
+        `;
+      }
     } else {
       imgContainer.innerHTML = `<p class="text-xs text-slate-500 py-6">💵 Kaedah Bayaran: <strong>${booking.paymentMethod || 'Tunai'}</strong> (Tiada fail resit dimuat naik).</p>`;
     }
