@@ -154,6 +154,22 @@ async function fetchCloudSyncEvents() {
               usersData.push(u);
               localStorage.setItem('sofia_users', JSON.stringify(usersData));
             }
+          } else if (payload.type === 'NEW_DISCOUNT' && payload.discount) {
+            const d = payload.discount;
+            const exists = discountsData.find(x => x.code === d.code);
+            if (!exists) {
+              discountsData.push(d);
+              localStorage.setItem('sofia_discounts', JSON.stringify(discountsData));
+              renderDiscountsTable();
+              console.log('✅ Kod diskaun baru diterima dari sync:', d.code);
+            }
+          } else if (payload.type === 'DELETE_DISCOUNT' && payload.discountId) {
+            const before = discountsData.length;
+            discountsData = discountsData.filter(x => x.id !== payload.discountId);
+            if (discountsData.length !== before) {
+              localStorage.setItem('sofia_discounts', JSON.stringify(discountsData));
+              renderDiscountsTable();
+            }
           }
         }
       } catch (e) {}
@@ -278,10 +294,22 @@ let discountsData = [];
 let activeAppliedDiscount = null;
 
 async function fetchDiscounts() {
+  const DEFAULT_DISC = [
+    { id: 'DISC-001', code: 'PROMO50', amount: 50, active: true, createdAt: new Date().toISOString() },
+    { id: 'DISC-002', code: 'TRY50', amount: 50, active: true, createdAt: new Date().toISOString() },
+    { id: 'DISC-003', code: 'RAYA50', amount: 50, active: true, createdAt: new Date().toISOString() }
+  ];
+
   try {
     const res = await fetch(`${API_BASE}/api/discounts`);
     if (res.ok) {
       discountsData = await res.json();
+      // Merge in any defaults that aren't already in the API result
+      DEFAULT_DISC.forEach(def => {
+        if (!discountsData.find(d => d.code === def.code)) {
+          discountsData.push(def);
+        }
+      });
       localStorage.setItem('sofia_discounts', JSON.stringify(discountsData));
     } else {
       throw new Error('Discounts API response not OK');
@@ -289,11 +317,21 @@ async function fetchDiscounts() {
   } catch (err) {
     const saved = localStorage.getItem('sofia_discounts');
     if (saved) {
-      try { discountsData = JSON.parse(saved); } catch (e) { discountsData = []; }
+      try {
+        discountsData = JSON.parse(saved);
+        // Always merge defaults into cached data
+        DEFAULT_DISC.forEach(def => {
+          if (!discountsData.find(d => d.code === def.code)) {
+            discountsData.push(def);
+          }
+        });
+        localStorage.setItem('sofia_discounts', JSON.stringify(discountsData));
+      } catch (e) {
+        discountsData = [...DEFAULT_DISC];
+        localStorage.setItem('sofia_discounts', JSON.stringify(discountsData));
+      }
     } else {
-      discountsData = [
-        { id: 'DISC-001', code: 'PROMO50', amount: 50, active: true, createdAt: new Date().toISOString() }
-      ];
+      discountsData = [...DEFAULT_DISC];
       localStorage.setItem('sofia_discounts', JSON.stringify(discountsData));
     }
   }
@@ -378,6 +416,7 @@ async function handleCreateDiscountSubmit(e) {
   };
   discountsData.push(newD);
   localStorage.setItem('sofia_discounts', JSON.stringify(discountsData));
+  broadcastSyncEvent({ type: 'NEW_DISCOUNT', discount: newD });
   if (document.getElementById('discount-code-input')) document.getElementById('discount-code-input').value = '';
   if (document.getElementById('discount-amount-input')) document.getElementById('discount-amount-input').value = '';
   renderDiscountsTable();
@@ -391,6 +430,7 @@ async function deleteDiscount(discountId) {
   } catch (err) {}
   discountsData = discountsData.filter(d => d.id !== discountId);
   localStorage.setItem('sofia_discounts', JSON.stringify(discountsData));
+  broadcastSyncEvent({ type: 'DELETE_DISCOUNT', discountId: discountId });
   renderDiscountsTable();
 }
 
