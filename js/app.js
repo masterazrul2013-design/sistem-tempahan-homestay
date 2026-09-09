@@ -1617,7 +1617,6 @@ function openPaymentModal(bookingId, paymentMethod = 'Online Transfer') {
   const secBank = document.getElementById('payment-sec-bank');
   const bankRefId = document.getElementById('bank-ref-id');
   const titleEl = document.getElementById('payment-modal-title');
-  const proofAmountInput = document.getElementById('proof-amount-paid');
 
   if (bankRefId) bankRefId.innerText = bookingId;
 
