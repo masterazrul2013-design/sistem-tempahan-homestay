@@ -125,8 +125,12 @@ async function fetchCloudSyncEvents() {
               bookingsData.push(b);
               hasChanges = true;
             } else {
-              // Merge if newer
+              // Merge cloud data BUT preserve local proofImage if cloud doesn't have one
+              const existingProof = bookingsData[idx].proofImage;
               bookingsData[idx] = { ...bookingsData[idx], ...b };
+              if (existingProof && !b.proofImage) {
+                bookingsData[idx].proofImage = existingProof;
+              }
               hasChanges = true;
             }
           } else if (payload.type === 'UPDATE_STATUS' && payload.bookingId) {
@@ -1120,13 +1124,19 @@ async function fetchBookings() {
     }
   });
 
-  // Merge from localStorage
+  // Merge from localStorage — preserve local fields like proofImage that cloud doesn't carry
   let localBookings = JSON.parse(localStorage.getItem('sofia_bookings') || 'null');
   if (localBookings && Array.isArray(localBookings)) {
     localBookings.forEach(lb => {
       const idx = bookingsData.findIndex(b => b.id === lb.id);
       if (idx !== -1) {
-        bookingsData[idx] = lb;
+        // Preserve important local-only fields that cloud sync doesn't carry
+        const merged = { ...bookingsData[idx], ...lb };
+        // If local has proofImage and cloud version doesn't, keep local's
+        if (lb.proofImage && !bookingsData[idx].proofImage) {
+          merged.proofImage = lb.proofImage;
+        }
+        bookingsData[idx] = merged;
       } else {
         bookingsData.push(lb);
       }
