@@ -600,16 +600,17 @@
         </div>
 
         <div class="bg-red-50 p-2.5 rounded-xl border border-red-200 text-[11px] text-red-700 font-semibold leading-tight text-left">
-          ⚠️ <strong>PERHATIAN WAJIB:</strong> Sila muat naik bukti bayaran di bawah dan **masukkan jumlah bayaran yang telah di-transfer** (Cth: Deposit RM 100 atau Bayaran Penuh).
+          ⚠️ <strong>PERHATIAN WAJIB:</strong> Sila muat naik bukti bayaran (resit transfer / tangkapan skrin) di bawah untuk pengesahan Admin.
         </div>
 
         <form onsubmit="handleUploadProofSubmit(event)" class="space-y-3 text-left pt-1">
           <input type="hidden" id="upload-booking-id">
+          <input type="hidden" id="proof-amount-paid">
           
-          <div>
-            <label class="block text-xs font-bold text-navy-900 mb-1">Jumlah Di-transfer / Dibayar (RM) <span class="text-red-500">*</span></label>
-            <input type="number" id="proof-amount-paid" min="1" step="any" required placeholder="Cth: 100.00 atau 450.00" class="w-full px-3 py-2 border-2 border-navy-900 rounded-xl text-sm font-bold text-navy-900 focus:ring-2 focus:ring-navy-900 focus:outline-none">
-            <p class="text-[10px] text-slate-500 mt-0.5">Masukkan jumlah wang yang telah anda bayar/transfer (Deposit RM100 sahaja atau Bayaran Penuh).</p>
+          <div class="bg-navy-50 border-2 border-navy-900 rounded-xl p-3 text-center">
+            <p class="text-[10px] text-slate-500 font-semibold uppercase tracking-wider mb-1">Jumlah Yang Perlu Dibayar</p>
+            <p id="proof-amount-display" class="text-2xl font-bold text-navy-900">RM 0.00</p>
+            <p class="text-[10px] text-emerald-700 font-semibold mt-0.5" id="proof-discount-note"></p>
           </div>
 
           <div>

@@ -1622,13 +1622,31 @@ function openPaymentModal(bookingId, paymentMethod = 'Online Transfer') {
   if (bankRefId) bankRefId.innerText = bookingId;
 
   const booking = bookingsData.find(b => b.id === bookingId);
-  if (proofAmountInput) {
-    if (booking && booking.paidAmount > 0) {
-      proofAmountInput.value = booking.paidAmount;
-    } else if (booking) {
-      proofAmountInput.value = '100.00';
+
+  // Auto-calculate the correct amount due (grandTotal with discount applied)
+  let amountDue = 0;
+  let discountNote = '';
+  if (booking) {
+    const discAmt = parseFloat(booking.discountAmount) || 0;
+    const accTotal = (booking.nights || 1) * (booking.ratePerNight || 350);
+    const secDep = booking.securityDeposit || 100;
+    amountDue = booking.grandTotal !== undefined
+      ? booking.grandTotal
+      : Math.max(0, accTotal + secDep - discAmt);
+    if (discAmt > 0) {
+      discountNote = `🏷️ Diskaun ${booking.discountCode || 'Promo'} -RM${discAmt.toFixed(2)} digunapakai`;
     }
   }
+
+  // Set hidden input value (used by handleUploadProofSubmit)
+  const proofAmountInput = document.getElementById('proof-amount-paid');
+  if (proofAmountInput) proofAmountInput.value = amountDue.toFixed(2);
+
+  // Update display element
+  const displayEl = document.getElementById('proof-amount-display');
+  if (displayEl) displayEl.innerText = `RM ${amountDue.toFixed(2)}`;
+  const discountNoteEl = document.getElementById('proof-discount-note');
+  if (discountNoteEl) discountNoteEl.innerText = discountNote;
 
   if (paymentMethod === 'Online Transfer') {
     if (secQr) secQr.classList.add('hidden');
@@ -1673,10 +1691,17 @@ async function handleUploadProofSubmit(e) {
   const fileInput = document.getElementById('proof-file');
   const paidAmountRaw = document.getElementById('proof-amount-paid')?.value.trim();
 
-  const userPaidAmount = parseFloat(paidAmountRaw);
+  const booking = bookingsData.find(b => b.id === bookingId);
+
+  // Auto-use grandTotal if hidden input is empty or invalid
+  let userPaidAmount = parseFloat(paidAmountRaw);
   if (isNaN(userPaidAmount) || userPaidAmount <= 0) {
-    alert('Sila masukkan jumlah bayaran yang sah (RM) yang telah anda transfer!');
-    return;
+    const discAmt = parseFloat(booking?.discountAmount) || 0;
+    const accTotal = (booking?.nights || 1) * (booking?.ratePerNight || 350);
+    const secDep = booking?.securityDeposit || 100;
+    userPaidAmount = booking?.grandTotal !== undefined
+      ? booking.grandTotal
+      : Math.max(0, accTotal + secDep - discAmt);
   }
 
   if (!fileInput.files || fileInput.files.length === 0) {
@@ -1742,7 +1767,6 @@ async function handleUploadProofSubmit(e) {
 
   const finalProofUrl = cloudImageUrl || imageDataUrl;
 
-  const booking = bookingsData.find(b => b.id === bookingId);
   if (booking) {
     booking.proofImage = finalProofUrl;
     booking.paidAmount = userPaidAmount;
